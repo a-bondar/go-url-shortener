@@ -10,7 +10,7 @@ import (
 var linksMap = map[string]string{}
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" || r.Header.Get("Content-Type") != "text/plain" {
+	if r.URL.Path != "/" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -34,14 +34,14 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	linkId := strings.Split(r.URL.Path[1:], "/")[0]
+	linkID := strings.Split(r.URL.Path[1:], "/")[0]
 
-	if linkId == "" {
+	if linkID == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	link, ok := linksMap[linkId]
+	link, ok := linksMap[linkID]
 
 	if !ok {
 		http.Error(w, `Link not found`, http.StatusNotFound)
