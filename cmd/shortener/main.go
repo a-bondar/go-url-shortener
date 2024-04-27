@@ -1,30 +1,17 @@
 package main
 
 import (
+	"encoding/base64"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
-var linksMap map[string]string
-
-func isValidURL(input string) bool {
-	_, err := url.ParseRequestURI(input)
-	if err != nil {
-		return false
-	}
-	return true
-}
+var linksMap = map[string]string{}
 
 func handlePost(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	if r.URL.Path != "/" || r.Header.Get("Content-Type") != "text/plain" {
 		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if r.Header.Get("Content-Type") != "text/plain" {
-		http.Error(w, "Header is not correct", http.StatusBadRequest)
 		return
 	}
 
@@ -35,14 +22,10 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !isValidURL(string(body)) {
-		http.Error(w, "Data is not valid", http.StatusBadRequest)
-		return
-	}
-
-	// @TODO - add base64 implementation
-
-	w.Write([]byte(body))
+	sEnc := base64.StdEncoding.EncodeToString(body)
+	linksMap[sEnc] = string(body)
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte("http" + "://" + r.Host + r.URL.String() + sEnc))
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +70,7 @@ func main() {
 
 	mux.HandleFunc(`/`, handleRoot)
 
-	err := http.ListenAndServe(`:8080`, mux)
+	err := http.ListenAndServe(`localhost:8080`, mux)
 	if err != nil {
 		panic(err)
 	}
