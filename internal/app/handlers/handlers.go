@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/base64"
-	"fmt"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
@@ -28,8 +27,6 @@ func HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
 
 	link, ok := linksMap[linkID]
-
-	fmt.Println(linkID, link)
 
 	if !ok {
 		http.Error(w, `Link not found`, http.StatusNotFound)
