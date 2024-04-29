@@ -2,19 +2,15 @@ package handlers
 
 import (
 	"encoding/base64"
+	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
-	"strings"
 )
 
 var linksMap = map[string]string{}
 
-func handlePost(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
+func HandlePost(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 
 	if err != nil {
@@ -28,20 +24,12 @@ func handlePost(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("http" + "://" + r.Host + r.URL.String() + sEnc))
 }
 
-func handleGet(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	linkID := strings.Split(r.URL.Path[1:], "/")[0]
-
-	if linkID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+func HandleGet(w http.ResponseWriter, r *http.Request) {
+	linkID := chi.URLParam(r, "linkID")
 
 	link, ok := linksMap[linkID]
+
+	fmt.Println(linkID, link)
 
 	if !ok {
 		http.Error(w, `Link not found`, http.StatusNotFound)
@@ -49,18 +37,4 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, link, http.StatusTemporaryRedirect)
-}
-
-func HandleRoot(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		handlePost(w, r)
-		return
-	}
-
-	if r.Method == http.MethodGet {
-		handleGet(w, r)
-		return
-	}
-
-	w.WriteHeader(http.StatusMethodNotAllowed)
 }
