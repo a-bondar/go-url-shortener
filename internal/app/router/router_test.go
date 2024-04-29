@@ -103,6 +103,7 @@ func TestRouter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, body := testRequest(t, ts, tc.method, tc.path, tc.body)
+			defer resp.Body.Close()
 
 			assert.Equal(t, tc.expectedCode, resp.StatusCode, "Response code is not correct")
 
