@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -29,6 +30,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 }
 
 func TestRouter(t *testing.T) {
+	config.ParseFlags()
 	ts := httptest.NewServer(Router())
 	defer ts.Close()
 

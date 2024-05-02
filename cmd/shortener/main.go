@@ -1,13 +1,22 @@
 package main
 
 import (
+	"fmt"
+	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/router"
 	"net/http"
 )
 
 func main() {
-	err := http.ListenAndServe(`localhost:8080`, router.Router())
-	if err != nil {
+	config.ParseFlags()
+
+	if err := run(); err != nil {
 		panic(err)
 	}
+}
+
+func run() error {
+	fmt.Println("Running server on:", config.FlagOptions.RunAddr)
+
+	return http.ListenAndServe(config.FlagOptions.RunAddr, router.Router())
 }

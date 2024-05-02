@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/base64"
+	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ func HandlePost(w http.ResponseWriter, r *http.Request) {
 	sEnc := base64.StdEncoding.EncodeToString(body)
 	linksMap[sEnc] = string(body)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("http" + "://" + r.Host + r.URL.String() + sEnc))
+	w.Write([]byte(config.FlagOptions.ShortLinkBaseURL + "/" + sEnc))
 }
 
 func HandleGet(w http.ResponseWriter, r *http.Request) {
