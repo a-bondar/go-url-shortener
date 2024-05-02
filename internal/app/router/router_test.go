@@ -85,7 +85,7 @@ func TestRouter(t *testing.T) {
 			path:         "/",
 			body:         io.NopCloser(strings.NewReader("http://hello.world")),
 			expectedCode: http.StatusCreated,
-			expectedBody: ts.URL + "/aHR0cDovL2hlbGxvLndvcmxk",
+			expectedBody: "http://localhost:8080/aHR0cDovL2hlbGxvLndvcmxk",
 		},
 		{
 			name:         "Status 404 if link doesn't exist",
