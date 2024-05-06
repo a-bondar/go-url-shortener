@@ -20,7 +20,7 @@ func ParseFlags() {
 		FlagOptions.RunAddr = envRunAddr
 	}
 
-	if shortLinkBaseUrl := os.Getenv("BASE_URL"); shortLinkBaseUrl != "" {
-		FlagOptions.ShortLinkBaseURL = shortLinkBaseUrl
+	if shortLinkBaseURL := os.Getenv("BASE_URL"); shortLinkBaseURL != "" {
+		FlagOptions.ShortLinkBaseURL = shortLinkBaseURL
 	}
 }
