@@ -1,22 +1,31 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/router"
-	"net/http"
 )
 
 func main() {
-	config.ParseFlags()
-
-	if err := run(); err != nil {
-		panic(err)
+	if err := Run(); err != nil {
+		log.Fatal(err)
 	}
 }
 
-func run() error {
-	fmt.Println("Running server on:", config.FlagOptions.RunAddr)
+func Run() error {
+	cfg := config.GetConfig()
 
-	return http.ListenAndServe(config.FlagOptions.RunAddr, router.Router())
+	fmt.Println("Running server on:", cfg.RunAddr)
+
+	if err := http.ListenAndServe(cfg.RunAddr, router.Router(cfg)); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("HTTP server has encountered an error: %w", err)
+		}
+	}
+
+	return nil
 }
