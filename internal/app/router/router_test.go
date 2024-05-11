@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,12 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Println("Error closing response body:", err)
+		}
+	}()
 
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -108,7 +114,12 @@ func TestRouter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, body := testRequest(t, ts, tc.method, tc.path, tc.body)
-			defer resp.Body.Close()
+
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					fmt.Println("Error closing response body:", err)
+				}
+			}()
 
 			assert.Equal(t, tc.expectedCode, resp.StatusCode, "Response code is not correct")
 
