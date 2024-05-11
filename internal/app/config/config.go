@@ -17,11 +17,11 @@ func GetConfig() *Config {
 	flag.StringVar(&config.ShortLinkBaseURL, "b", "http://localhost:8080", "short link base URL")
 	flag.Parse()
 
-	if envRunAddr := os.Getenv("SERVER_ADDRESS"); envRunAddr != "" {
+	if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
 		config.RunAddr = envRunAddr
 	}
 
-	if shortLinkBaseURL := os.Getenv("BASE_URL"); shortLinkBaseURL != "" {
+	if shortLinkBaseURL, ok := os.LookupEnv("BASE_URL"); ok {
 		config.ShortLinkBaseURL = shortLinkBaseURL
 	}
 
