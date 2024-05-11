@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/go-chi/chi/v5"
@@ -23,7 +24,15 @@ func HandlePost(cfg *config.Config, w http.ResponseWriter, r *http.Request) {
 	sEnc := base64.StdEncoding.EncodeToString(body)
 	linksMap[sEnc] = string(body)
 	w.WriteHeader(http.StatusCreated)
-	if _, err := w.Write([]byte(cfg.ShortLinkBaseURL + "/" + sEnc)); err != nil {
+
+	resURL, err := url.JoinPath(cfg.ShortLinkBaseURL, sEnc)
+	if err != nil {
+		log.Printf("failed to build url: %v", err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := w.Write([]byte(resURL)); err != nil {
 		log.Printf("failed to write result: %v", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
