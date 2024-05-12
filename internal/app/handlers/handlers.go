@@ -8,24 +8,48 @@ import (
 	"net/url"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
+	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/go-chi/chi/v5"
 )
 
-var linksMap = map[string]string{}
+//var linksMap = map[string]string{}
 
-func HandlePost(cfg *config.Config, w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+type Service interface {
+	SaveURL(fullURL string) (string, error)
+	GetURL(shortURL string) (string, error)
+}
+
+type Handler struct {
+	cfg *config.Config
+	s   Service
+}
+
+func NewHanlder(cfg *config.Config, s Service) *Handler {
+	return &Handler{
+		cfg: cfg,
+		s:   s,
+	}
+}
+
+func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
+	fullURL, err := io.ReadAll(r.Body)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	shortURL, err := service.SaveURL(string(fullURL))
+
+	// check err and send short URL to user
+
 	sEnc := base64.StdEncoding.EncodeToString(body)
-	linksMap[sEnc] = string(body)
+	var fullURL, shortURL string
+	h.s.SaveURL(fullURL, shortURL)
+	//linksMap[sEnc] = string(body)
 	w.WriteHeader(http.StatusCreated)
 
-	resURL, err := url.JoinPath(cfg.ShortLinkBaseURL, sEnc)
+	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, sEnc)
 	if err != nil {
 		log.Printf("failed to build url: %v", err)
 		http.Error(w, "", http.StatusInternalServerError)
@@ -39,7 +63,7 @@ func HandlePost(cfg *config.Config, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func HandleGet(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
 
 	link, ok := linksMap[linkID]
