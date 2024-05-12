@@ -12,7 +12,7 @@ type Service struct {
 const maxRetries = 3
 
 func (s *Service) SaveURL(fullURL string) (string, error) {
-	// generate short link
+	// generate short link (math/rand, crypto/rand) (max length = 8)
 	// check that this short link does not yet exist
 	// if it's already in the store, regenerate short link
 	// max n retries
