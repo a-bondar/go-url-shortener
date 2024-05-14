@@ -10,8 +10,8 @@ type Config struct {
 	ShortLinkBaseURL string
 }
 
-func GetConfig() *Config {
-	config := Config{}
+func NewConfig() *Config {
+	config := &Config{}
 
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address and port to run server")
 	flag.StringVar(&config.ShortLinkBaseURL, "b", "http://localhost:8080", "short link base URL")
@@ -25,5 +25,5 @@ func GetConfig() *Config {
 		config.ShortLinkBaseURL = shortLinkBaseURL
 	}
 
-	return &config
+	return config
 }

@@ -1,18 +1,14 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
-	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/go-chi/chi/v5"
 )
-
-//var linksMap = map[string]string{}
 
 type Service interface {
 	SaveURL(fullURL string) (string, error)
@@ -24,7 +20,7 @@ type Handler struct {
 	s   Service
 }
 
-func NewHanlder(cfg *config.Config, s Service) *Handler {
+func NewHandler(cfg *config.Config, s Service) *Handler {
 	return &Handler{
 		cfg: cfg,
 		s:   s,
@@ -39,25 +35,25 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL, err := service.SaveURL(string(fullURL))
+	shortURL, err := h.s.SaveURL(string(fullURL))
 
-	// check err and send short URL to user
+	if err != nil {
+		log.Printf("Failed to shorten url: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	sEnc := base64.StdEncoding.EncodeToString(body)
-	var fullURL, shortURL string
-	h.s.SaveURL(fullURL, shortURL)
-	//linksMap[sEnc] = string(body)
 	w.WriteHeader(http.StatusCreated)
 
-	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, sEnc)
+	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, shortURL)
 	if err != nil {
-		log.Printf("failed to build url: %v", err)
+		log.Printf("Failed to build url: %v", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := w.Write([]byte(resURL)); err != nil {
-		log.Printf("failed to write result: %v", err)
+		log.Printf("Failed to write result: %v", err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -66,12 +62,12 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
 
-	link, ok := linksMap[linkID]
+	URL, err := h.s.GetURL(linkID)
 
-	if !ok {
+	if err != nil {
 		http.Error(w, `Link not found`, http.StatusNotFound)
 		return
 	}
 
-	http.Redirect(w, r, link, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, URL, http.StatusTemporaryRedirect)
 }

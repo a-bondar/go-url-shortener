@@ -1,24 +1,61 @@
 package service
 
+import (
+	"errors"
+	"fmt"
+)
+
 type Store interface {
 	SaveURL(fullURL string, shortURL string) error
 	GetURL(shortURL string) (string, error)
 }
 
+type Utils interface {
+	GenerateRandomString(size int) string
+}
+
 type Service struct {
 	s Store
+	u Utils
+}
+
+func NewService(s Store, u Utils) *Service {
+	return &Service{s: s, u: u}
 }
 
 const maxRetries = 3
+const maxShortURLLength = 8
 
 func (s *Service) SaveURL(fullURL string) (string, error) {
-	// generate short link (math/rand, crypto/rand) (max length = 8)
-	// check that this short link does not yet exist
-	// if it's already in the store, regenerate short link
-	// max n retries
-	// when the short link is unique, save it to store
+	var shortenURL string
+
+	for range maxRetries {
+		shortenURL = s.u.GenerateRandomString(maxShortURLLength)
+
+		if _, err := s.s.GetURL(shortenURL); err != nil {
+			break
+		} else {
+			shortenURL = ""
+		}
+	}
+
+	if shortenURL == "" {
+		return "", errors.New("failed to generate unique short URL")
+	}
+
+	if err := s.s.SaveURL(fullURL, shortenURL); err != nil {
+		return "", fmt.Errorf("failed to save URL: %w", err)
+	}
+
+	return shortenURL, nil
 }
 
 func (s *Service) GetURL(shortURL string) (string, error) {
+	fullURL, err := s.s.GetURL(shortURL)
 
+	if err != nil {
+		return "", fmt.Errorf("failed to get full URL: %w", err)
+	}
+
+	return fullURL, nil
 }
