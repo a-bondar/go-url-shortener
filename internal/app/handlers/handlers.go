@@ -31,6 +31,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	fullURL, err := io.ReadAll(r.Body)
 
 	if err != nil {
+		log.Printf("Failed to read body: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -65,6 +66,7 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	URL, err := h.s.GetURL(linkID)
 
 	if err != nil {
+		log.Printf("Failed to get url: %v", err)
 		http.Error(w, `Link not found`, http.StatusNotFound)
 		return
 	}
