@@ -45,7 +45,12 @@ func (s *serviceMock) SaveURL(_ string) (string, error) {
 	return "qw12qw", nil
 }
 
-func (s *serviceMock) GetURL(_ string) (string, error) {
+func (s *serviceMock) GetURL(shortURL string) (string, error) {
+	if shortURL != "qw12qw" {
+		return "", fmt.Errorf("link not found")
+
+	}
+
 	return "https://hello.world", nil
 }
 
