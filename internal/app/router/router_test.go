@@ -1,6 +1,7 @@
 package router
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,8 +48,7 @@ func (s *serviceMock) SaveURL(_ string) (string, error) {
 
 func (s *serviceMock) GetURL(shortURL string) (string, error) {
 	if shortURL != "qw12qw" {
-		return "", fmt.Errorf("link not found")
-
+		return "", errors.New("link not found")
 	}
 
 	return "https://hello.world", nil
