@@ -8,11 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
-	"github.com/a-bondar/go-url-shortener/internal/app/service"
-	"github.com/a-bondar/go-url-shortener/internal/app/store"
-
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
+	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,17 +39,19 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 	return resp, string(respBody)
 }
 
-type utilsMock struct{}
+type serviceMock struct{}
 
-func (u *utilsMock) GenerateRandomString(_ int) string {
-	return "qw12qw"
+func (s *serviceMock) SaveURL(_ string) (string, error) {
+	return "qw12qw", nil
+}
+
+func (s *serviceMock) GetURL(_ string) (string, error) {
+	return "https://hello.world", nil
 }
 
 func TestRouter(t *testing.T) {
 	cfg := config.NewConfig()
-	s := store.NewStore()
-	u := &utilsMock{}
-	svc := service.NewService(s, u)
+	svc := &serviceMock{}
 	h := handlers.NewHandler(cfg, svc)
 
 	ts := httptest.NewServer(Router(h))
@@ -107,7 +106,7 @@ func TestRouter(t *testing.T) {
 			name:         "Status 201 if link was shortened successfully",
 			method:       http.MethodPost,
 			path:         "/",
-			body:         io.NopCloser(strings.NewReader("http://hello.world")),
+			body:         io.NopCloser(strings.NewReader("https://hello.world")),
 			expectedCode: http.StatusCreated,
 			expectedBody: "http://localhost:8080/qw12qw",
 		},
@@ -122,7 +121,7 @@ func TestRouter(t *testing.T) {
 			method:           http.MethodGet,
 			path:             "/qw12qw",
 			expectedCode:     http.StatusTemporaryRedirect,
-			expectedLocation: "http://hello.world",
+			expectedLocation: "https://hello.world",
 		},
 	}
 

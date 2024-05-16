@@ -11,7 +11,6 @@ import (
 	"github.com/a-bondar/go-url-shortener/internal/app/router"
 	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/a-bondar/go-url-shortener/internal/app/store"
-	"github.com/a-bondar/go-url-shortener/internal/app/utils"
 )
 
 func main() {
@@ -23,8 +22,7 @@ func main() {
 func Run() error {
 	cfg := config.NewConfig()
 	s := store.NewStore()
-	u := utils.NewUtils()
-	svc := service.NewService(s, u)
+	svc := service.NewService(s)
 	h := handlers.NewHandler(cfg, svc)
 
 	if err := http.ListenAndServe(cfg.RunAddr, router.Router(h)); err != nil {
@@ -33,7 +31,7 @@ func Run() error {
 		}
 	}
 
-	fmt.Println("Running server on:", cfg.RunAddr)
+	log.Printf("Running server on: %s", cfg.RunAddr)
 
 	return nil
 }

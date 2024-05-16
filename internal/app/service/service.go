@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 type Store interface {
@@ -10,32 +12,37 @@ type Store interface {
 	GetURL(shortURL string) (string, error)
 }
 
-type Utils interface {
-	GenerateRandomString(size int) string
-}
-
 type Service struct {
 	s Store
-	u Utils
 }
 
-func NewService(s Store, u Utils) *Service {
-	return &Service{s: s, u: u}
+func NewService(s Store) *Service {
+	return &Service{s: s}
 }
 
 const maxRetries = 3
 const maxShortURLLength = 8
+const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+func generateRandomString(size int) string {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	b := make([]rune, size)
+	for i := range b {
+		b[i] = rune(chars[rnd.Intn(len(chars))])
+	}
+
+	return string(b)
+}
 
 func (s *Service) SaveURL(fullURL string) (string, error) {
 	var shortenURL string
 
 	for range maxRetries {
-		shortenURL = s.u.GenerateRandomString(maxShortURLLength)
+		shortenURL = generateRandomString(maxShortURLLength)
 
 		if _, err := s.s.GetURL(shortenURL); err != nil {
 			break
-		} else {
-			shortenURL = ""
 		}
 	}
 
