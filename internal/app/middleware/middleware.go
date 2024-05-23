@@ -1,9 +1,11 @@
 package middleware
 
 import (
-	"go.uber.org/zap"
+	"fmt"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type (
@@ -22,7 +24,7 @@ func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
 
-	return size, err
+	return size, fmt.Errorf("error: %w", err)
 }
 
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
