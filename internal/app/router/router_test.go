@@ -13,6 +13,7 @@ import (
 	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
@@ -55,11 +56,12 @@ func (s *serviceMock) GetURL(shortURL string) (string, error) {
 }
 
 func TestRouter(t *testing.T) {
+	logger := zap.NewNop()
 	cfg := config.NewConfig()
 	svc := &serviceMock{}
-	h := handlers.NewHandler(cfg, svc)
+	h := handlers.NewHandler(cfg, svc, logger)
 
-	ts := httptest.NewServer(Router(h))
+	ts := httptest.NewServer(Router(h, logger))
 	defer ts.Close()
 
 	testCases := []struct {
