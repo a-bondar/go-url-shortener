@@ -49,15 +49,16 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, shortURL)
+
 	if err != nil {
 		h.logger.Error("Failed to build URL", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := w.Write([]byte(resURL)); err != nil {
 		h.logger.Error("Failed to write result", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }

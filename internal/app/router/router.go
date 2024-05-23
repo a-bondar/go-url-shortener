@@ -10,7 +10,7 @@ import (
 func Router(h *handlers.Handler, logger *zap.Logger) chi.Router {
 	r := chi.NewRouter()
 
-	r.Use(middleware.LoggingMiddleware(logger))
+	r.Use(middleware.WithLogging(logger))
 	r.Post("/", h.HandlePost)
 	r.Get("/{linkID}", h.HandleGet)
 

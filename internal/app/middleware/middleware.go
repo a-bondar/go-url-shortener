@@ -1,48 +1,59 @@
 package middleware
 
 import (
-	"fmt"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
-type loggingResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-	size       int
+type (
+	responseData struct {
+		status int
+		size   int
+	}
+
+	loggingResponseWriter struct {
+		http.ResponseWriter
+		responseData *responseData
+	}
+)
+
+func (r *loggingResponseWriter) Write(b []byte) (int, error) {
+	size, err := r.ResponseWriter.Write(b)
+	r.responseData.size += size
+
+	return size, err
 }
 
-func (rw *loggingResponseWriter) WriteHeader(statusCode int) {
-	rw.statusCode = statusCode
-	rw.ResponseWriter.WriteHeader(statusCode)
+func (r *loggingResponseWriter) WriteHeader(statusCode int) {
+	r.ResponseWriter.WriteHeader(statusCode)
+	r.responseData.status = statusCode
 }
 
-func (rw *loggingResponseWriter) Write(b []byte) (int, error) {
-	size, err := rw.ResponseWriter.Write(b)
-	rw.size += size
-
-	return size, fmt.Errorf("failed to write response: %w", err)
-}
-
-func LoggingMiddleware(logger *zap.Logger) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
+func WithLogging(logger *zap.Logger) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			ww := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			rd := &responseData{
+				status: 0,
+				size:   0,
+			}
+			lrw := &loggingResponseWriter{
+				ResponseWriter: w,
+				responseData:   rd,
+			}
 
-			next.ServeHTTP(ww, r)
+			h.ServeHTTP(lrw, r)
 
 			duration := time.Since(start)
 
 			logger.Info("Request",
 				zap.String("method", r.Method),
 				zap.String("uri", r.RequestURI),
+				zap.Int("status", lrw.responseData.status),
+				zap.Int("size", lrw.responseData.size),
 				zap.Duration("duration", duration),
-				zap.Int("status", ww.statusCode),
-				zap.Int("size", ww.size),
 			)
 		})
 	}
