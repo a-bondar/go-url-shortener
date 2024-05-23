@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type Service interface {
@@ -16,14 +16,16 @@ type Service interface {
 }
 
 type Handler struct {
-	cfg *config.Config
-	s   Service
+	cfg    *config.Config
+	s      Service
+	logger *zap.Logger
 }
 
-func NewHandler(cfg *config.Config, s Service) *Handler {
+func NewHandler(cfg *config.Config, s Service, logger *zap.Logger) *Handler {
 	return &Handler{
-		cfg: cfg,
-		s:   s,
+		cfg:    cfg,
+		s:      s,
+		logger: logger,
 	}
 }
 
@@ -31,7 +33,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	fullURL, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		log.Printf("Failed to read body: %v", err)
+		h.logger.Error("Failed to read body", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -39,7 +41,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	shortURL, err := h.s.SaveURL(string(fullURL))
 
 	if err != nil {
-		log.Printf("Failed to shorten url: %v", err)
+		h.logger.Error("Failed to shorten URL", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -47,15 +49,16 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, shortURL)
+
 	if err != nil {
-		log.Printf("Failed to build url: %v", err)
-		http.Error(w, "", http.StatusInternalServerError)
+		h.logger.Error("Failed to build URL", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := w.Write([]byte(resURL)); err != nil {
-		log.Printf("Failed to write result: %v", err)
-		http.Error(w, "", http.StatusInternalServerError)
+		h.logger.Error("Failed to write result", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
@@ -66,7 +69,7 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	URL, err := h.s.GetURL(linkID)
 
 	if err != nil {
-		log.Printf("Failed to get url: %v", err)
+		h.logger.Error("Failed to get URL", zap.Error(err))
 		http.Error(w, `Link not found`, http.StatusNotFound)
 		return
 	}
