@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
+	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -75,4 +78,54 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, URL, http.StatusTemporaryRedirect)
+}
+
+func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
+	var request models.Request
+	var buf bytes.Buffer
+
+	_, err := buf.ReadFrom(r.Body)
+
+	if err != nil {
+		h.logger.Error("Failed to read body", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := json.Unmarshal(buf.Bytes(), &request); err != nil {
+		h.logger.Error("Failed to unmarshal request", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	shortURL, err := h.s.SaveURL(request.URL)
+
+	if err != nil {
+		h.logger.Error("Failed to shorten URL", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resURL, err := url.JoinPath(h.cfg.ShortLinkBaseURL, shortURL)
+
+	if err != nil {
+		h.logger.Error("Failed to build URL", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := models.Response{
+		Result: resURL,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+	w.WriteHeader(http.StatusCreated)
+
+	if err := enc.Encode(resp); err != nil {
+		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

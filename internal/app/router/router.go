@@ -13,6 +13,7 @@ func Router(h *handlers.Handler, logger *zap.Logger) chi.Router {
 	r.Use(middleware.WithLogging(logger))
 	r.Post("/", h.HandlePost)
 	r.Get("/{linkID}", h.HandleGet)
+	r.Post("/api/shorten", h.HandleShorten)
 
 	return r
 }

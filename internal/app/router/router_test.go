@@ -1,12 +1,12 @@
 package router
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
@@ -67,7 +67,7 @@ func TestRouter(t *testing.T) {
 	testCases := []struct {
 		name             string
 		method           string
-		body             io.Reader
+		body             string
 		path             string
 		expectedCode     int
 		expectedBody     string
@@ -112,10 +112,10 @@ func TestRouter(t *testing.T) {
 		{
 			name:         "Status 201 if link was shortened successfully",
 			method:       http.MethodPost,
-			path:         "/",
-			body:         io.NopCloser(strings.NewReader("https://hello.world")),
+			path:         "/api/shorten",
+			body:         `{"url":  "https://hello.world"}`,
 			expectedCode: http.StatusCreated,
-			expectedBody: "http://localhost:8080/qw12qw",
+			expectedBody: `{"result": "http://localhost:8080/qw12qw"}`,
 		},
 		{
 			name:         "Status 404 if link doesn't exist",
@@ -134,7 +134,7 @@ func TestRouter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, body := testRequest(t, ts, tc.method, tc.path, tc.body)
+			resp, body := testRequest(t, ts, tc.method, tc.path, bytes.NewBufferString(tc.body))
 
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
@@ -145,7 +145,7 @@ func TestRouter(t *testing.T) {
 			assert.Equal(t, tc.expectedCode, resp.StatusCode, "Response code is not correct")
 
 			if tc.expectedBody != "" {
-				assert.Equal(t, tc.expectedBody, body, "Response body is not correct")
+				assert.JSONEq(t, tc.expectedBody, body, "Response body is not correct")
 			}
 
 			if tc.expectedLocation != "" {
