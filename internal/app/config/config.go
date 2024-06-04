@@ -8,6 +8,7 @@ import (
 type Config struct {
 	RunAddr          string
 	ShortLinkBaseURL string
+	FileStoragePath  string
 }
 
 func NewConfig() *Config {
@@ -15,6 +16,7 @@ func NewConfig() *Config {
 
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address and port to run server")
 	flag.StringVar(&config.ShortLinkBaseURL, "b", "http://localhost:8080", "short link base URL")
+	flag.StringVar(&config.FileStoragePath, "f", "/tmp/short-url-db.json", "file storage path")
 	flag.Parse()
 
 	if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
@@ -23,6 +25,10 @@ func NewConfig() *Config {
 
 	if shortLinkBaseURL, ok := os.LookupEnv("BASE_URL"); ok {
 		config.ShortLinkBaseURL = shortLinkBaseURL
+	}
+
+	if fileStoragePath, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok {
+		config.FileStoragePath = fileStoragePath
 	}
 
 	return config

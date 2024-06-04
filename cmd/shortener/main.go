@@ -37,6 +37,11 @@ func Run() error {
 
 	cfg := config.NewConfig()
 	s := store.NewStore()
+
+	if err := s.LoadFromFile(cfg.FileStoragePath); err != nil {
+		l.Error("Failed to load data from file", zap.Error(err))
+	}
+
 	svc := service.NewService(s)
 	h := handlers.NewHandler(cfg, svc, l)
 
