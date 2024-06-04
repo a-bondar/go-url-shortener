@@ -49,7 +49,8 @@ func (s *Store) WriteToFile(shortURL string, fullURL string, fName string) error
 
 	dataToJSON = append(dataToJSON, '\n')
 
-	file, err := os.OpenFile(fName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	const fileModeOwnerReadWrite = 0o600
+	file, err := os.OpenFile(fName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, fileModeOwnerReadWrite)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
