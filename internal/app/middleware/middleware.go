@@ -79,7 +79,7 @@ func WithGzip(logger *zap.Logger) func(h http.Handler) http.Handler {
 
 				if err != nil {
 					logger.Error("Cannot create gzip reader", zap.Error(err))
-					http.Error(w, "Cannot create gzip reader", http.StatusInternalServerError)
+					http.Error(w, "", http.StatusInternalServerError)
 					return
 				}
 
