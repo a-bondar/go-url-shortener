@@ -88,13 +88,13 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.logger.Error("Failed to read body", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
 	if err := json.Unmarshal(buf.Bytes(), &request); err != nil {
 		h.logger.Error("Failed to unmarshal request", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
