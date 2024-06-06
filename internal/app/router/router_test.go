@@ -43,7 +43,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 
 type serviceMock struct{}
 
-func (s *serviceMock) SaveURL(_ string, _ string) (string, error) {
+func (s *serviceMock) SaveURL(_ string) (string, error) {
 	return "qw12qw", nil
 }
 

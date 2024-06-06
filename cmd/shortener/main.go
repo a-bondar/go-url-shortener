@@ -36,10 +36,11 @@ func Run() error {
 	}(l)
 
 	cfg := config.NewConfig()
-	s := store.NewStore()
+	s, err := store.NewStore(cfg.FileStoragePath)
 
-	if err := s.LoadFromFile(cfg.FileStoragePath); err != nil {
+	if err != nil {
 		l.Error("Failed to load data from file", zap.Error(err))
+		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 
 	svc := service.NewService(s)

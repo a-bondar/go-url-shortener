@@ -14,7 +14,7 @@ import (
 )
 
 type Service interface {
-	SaveURL(fullURL string, fName string) (string, error)
+	SaveURL(fullURL string) (string, error)
 	GetURL(shortURL string) (string, error)
 }
 
@@ -41,7 +41,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL, err := h.s.SaveURL(string(fullURL), h.cfg.FileStoragePath)
+	shortURL, err := h.s.SaveURL(string(fullURL))
 
 	if err != nil {
 		h.logger.Error("Failed to shorten URL", zap.Error(err))
@@ -98,7 +98,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortURL, err := h.s.SaveURL(request.URL, h.cfg.FileStoragePath)
+	shortURL, err := h.s.SaveURL(request.URL)
 
 	if err != nil {
 		h.logger.Error("Failed to shorten URL", zap.Error(err))

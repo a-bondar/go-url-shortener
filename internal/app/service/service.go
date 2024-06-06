@@ -10,7 +10,6 @@ import (
 type Store interface {
 	SaveURL(fullURL string, shortURL string) error
 	GetURL(shortURL string) (string, error)
-	WriteToFile(shortURL string, fullURL string, fName string) error
 }
 
 type Service struct {
@@ -36,7 +35,7 @@ func generateRandomString(size int) string {
 	return string(b)
 }
 
-func (s *Service) SaveURL(fullURL string, fName string) (string, error) {
+func (s *Service) SaveURL(fullURL string) (string, error) {
 	var shortenURL string
 
 	for range maxRetries {
@@ -53,12 +52,6 @@ func (s *Service) SaveURL(fullURL string, fName string) (string, error) {
 
 	if err := s.s.SaveURL(fullURL, shortenURL); err != nil {
 		return "", fmt.Errorf("failed to save URL: %w", err)
-	}
-
-	if fName != "" {
-		if err := s.s.WriteToFile(shortenURL, fullURL, fName); err != nil {
-			return "", fmt.Errorf("failed to write to file: %w", err)
-		}
 	}
 
 	return shortenURL, nil
