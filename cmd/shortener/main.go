@@ -39,7 +39,6 @@ func Run() error {
 	s, err := store.NewStore(cfg.FileStoragePath)
 
 	if err != nil {
-		l.Error("Failed to load data from file", zap.Error(err))
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 

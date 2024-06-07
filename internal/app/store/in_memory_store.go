@@ -2,23 +2,23 @@ package store
 
 import "errors"
 
-type InMemoryStore struct {
+type inMemoryStore struct {
 	m map[string]string
 }
 
-func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{
+func newInMemoryStore() *inMemoryStore {
+	return &inMemoryStore{
 		m: make(map[string]string),
 	}
 }
 
-func (s *InMemoryStore) SaveURL(fullURL string, shortURL string) error {
+func (s *inMemoryStore) SaveURL(fullURL string, shortURL string) error {
 	s.m[shortURL] = fullURL
 
 	return nil
 }
 
-func (s *InMemoryStore) GetURL(shortURL string) (string, error) {
+func (s *inMemoryStore) GetURL(shortURL string) (string, error) {
 	if URL, ok := s.m[shortURL]; ok {
 		return URL, nil
 	}

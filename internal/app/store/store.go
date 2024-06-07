@@ -7,8 +7,8 @@ type Store interface {
 
 func NewStore(fName string) (Store, error) {
 	if fName == "" {
-		return NewInMemoryStore(), nil
+		return newInMemoryStore(), nil
 	}
 
-	return NewFileStore(fName)
+	return newFileStore(fName)
 }

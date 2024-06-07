@@ -10,14 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
-type FileStore struct {
-	InMemoryStore *InMemoryStore
+type fileStore struct {
+	inMemoryStore *inMemoryStore
 	fName         string
 }
 
-func NewFileStore(fName string) (*FileStore, error) {
-	store := &FileStore{
-		InMemoryStore: NewInMemoryStore(),
+func newFileStore(fName string) (*fileStore, error) {
+	store := &fileStore{
+		inMemoryStore: newInMemoryStore(),
 		fName:         fName,
 	}
 
@@ -29,8 +29,8 @@ func NewFileStore(fName string) (*FileStore, error) {
 	return store, nil
 }
 
-func (s *FileStore) SaveURL(fullURL string, shortURL string) error {
-	err := s.InMemoryStore.SaveURL(fullURL, shortURL)
+func (s *fileStore) SaveURL(fullURL string, shortURL string) error {
+	err := s.inMemoryStore.SaveURL(fullURL, shortURL)
 
 	if err != nil {
 		return err
@@ -39,11 +39,11 @@ func (s *FileStore) SaveURL(fullURL string, shortURL string) error {
 	return s.writeToFile(fullURL, shortURL)
 }
 
-func (s *FileStore) GetURL(shortURL string) (string, error) {
-	return s.InMemoryStore.GetURL(shortURL)
+func (s *fileStore) GetURL(shortURL string) (string, error) {
+	return s.inMemoryStore.GetURL(shortURL)
 }
 
-func (s *FileStore) writeToFile(fullURL string, shortURL string) error {
+func (s *fileStore) writeToFile(fullURL string, shortURL string) error {
 	data := models.Data{
 		UUID:        uuid.NewString(),
 		ShortURL:    shortURL,
@@ -77,7 +77,7 @@ func (s *FileStore) writeToFile(fullURL string, shortURL string) error {
 	return nil
 }
 
-func (s *FileStore) loadFromFile() error {
+func (s *fileStore) loadFromFile() error {
 	file, err := os.Open(s.fName)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -102,7 +102,7 @@ func (s *FileStore) loadFromFile() error {
 			return fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 
-		if err := s.InMemoryStore.SaveURL(data.OriginalURL, data.ShortURL); err != nil {
+		if err := s.inMemoryStore.SaveURL(data.OriginalURL, data.ShortURL); err != nil {
 			return fmt.Errorf("failed to save URL: %w", err)
 		}
 	}
