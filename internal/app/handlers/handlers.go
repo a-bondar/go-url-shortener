@@ -18,17 +18,23 @@ type Service interface {
 	GetURL(shortURL string) (string, error)
 }
 
+type Database interface {
+	Ping() error
+}
+
 type Handler struct {
 	cfg    *config.Config
 	s      Service
 	logger *zap.Logger
+	db     Database
 }
 
-func NewHandler(cfg *config.Config, s Service, logger *zap.Logger) *Handler {
+func NewHandler(cfg *config.Config, s Service, logger *zap.Logger, db Database) *Handler {
 	return &Handler{
 		cfg:    cfg,
 		s:      s,
 		logger: logger,
+		db:     db,
 	}
 }
 
@@ -125,6 +131,25 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 
 	if err := enc.Encode(resp); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
+	err := h.db.Ping()
+
+	if err != nil {
+		h.logger.Error("Unable to reach DB", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write([]byte(`{"status": "ok"}`)); err != nil {
+		h.logger.Error("Failed to write response", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
