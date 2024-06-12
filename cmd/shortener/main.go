@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"github.com/a-bondar/go-url-shortener/internal/app/router"
 	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/a-bondar/go-url-shortener/internal/app/store"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 )
 
@@ -42,8 +44,21 @@ func Run() error {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 
+	db, err := sql.Open("pgx", cfg.DatabaseDSN)
+
+	if err != nil {
+		return fmt.Errorf("failed to initialize DB: %w", err)
+	}
+
+	defer func(db *sql.DB) {
+		err := db.Close()
+		if err != nil {
+			l.Error("Failed to close DB", zap.Error(err))
+		}
+	}(db)
+
 	svc := service.NewService(s)
-	h := handlers.NewHandler(cfg, svc, l)
+	h := handlers.NewHandler(cfg, svc, l, db)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))
 
