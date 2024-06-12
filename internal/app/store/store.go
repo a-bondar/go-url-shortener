@@ -1,27 +1,14 @@
 package store
 
-import "errors"
-
-type Store struct {
-	m map[string]string
+type Store interface {
+	SaveURL(fullURL string, shortURL string) error
+	GetURL(shortURL string) (string, error)
 }
 
-func NewStore() *Store {
-	return &Store{
-		m: make(map[string]string),
-	}
-}
-
-func (s *Store) SaveURL(fullURL string, shortURL string) error {
-	s.m[shortURL] = fullURL
-
-	return nil
-}
-
-func (s *Store) GetURL(shortURL string) (string, error) {
-	if URL, ok := s.m[shortURL]; ok {
-		return URL, nil
+func NewStore(fName string) (Store, error) {
+	if fName == "" {
+		return newInMemoryStore(), nil
 	}
 
-	return "", errors.New("URL not found")
+	return newFileStore(fName)
 }
