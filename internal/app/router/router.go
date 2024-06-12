@@ -14,6 +14,7 @@ func Router(h *handlers.Handler, logger *zap.Logger) chi.Router {
 	r.Use(middleware.WithGzip(logger))
 	r.Post("/", h.HandlePost)
 	r.Get("/{linkID}", h.HandleGet)
+	r.Get("/ping", h.HandleDatabasePing)
 	r.Post("/api/shorten", h.HandleShorten)
 
 	return r

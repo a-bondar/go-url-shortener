@@ -55,11 +55,18 @@ func (s *serviceMock) GetURL(shortURL string) (string, error) {
 	return "https://hello.world", nil
 }
 
+type DBMock struct{}
+
+func (d *DBMock) Ping() error {
+	return nil
+}
+
 func TestRouter(t *testing.T) {
 	logger := zap.NewNop()
 	cfg := config.NewConfig()
 	svc := &serviceMock{}
-	h := handlers.NewHandler(cfg, svc, logger)
+	db := &DBMock{}
+	h := handlers.NewHandler(cfg, svc, logger, db)
 
 	ts := httptest.NewServer(Router(h, logger))
 	defer ts.Close()
