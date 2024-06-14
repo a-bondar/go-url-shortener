@@ -73,7 +73,6 @@ func (s *Service) Ping() error {
 
 	if err != nil {
 		return fmt.Errorf("failed to reach store: %w", err)
-		return fmt.Errorf("failed to reach store: %w", err)
 	}
 
 	return nil
