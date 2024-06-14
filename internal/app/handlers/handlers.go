@@ -16,9 +16,6 @@ import (
 type Service interface {
 	SaveURL(fullURL string) (string, error)
 	GetURL(shortURL string) (string, error)
-}
-
-type Database interface {
 	Ping() error
 }
 
@@ -26,15 +23,13 @@ type Handler struct {
 	cfg    *config.Config
 	s      Service
 	logger *zap.Logger
-	db     Database
 }
 
-func NewHandler(cfg *config.Config, s Service, logger *zap.Logger, db Database) *Handler {
+func NewHandler(cfg *config.Config, s Service, logger *zap.Logger) *Handler {
 	return &Handler{
 		cfg:    cfg,
 		s:      s,
 		logger: logger,
-		db:     db,
 	}
 }
 
@@ -137,7 +132,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
-	err := h.db.Ping()
+	err := h.s.Ping()
 
 	if err != nil {
 		h.logger.Error("Unable to reach DB", zap.Error(err))

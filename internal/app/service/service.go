@@ -10,6 +10,7 @@ import (
 type Store interface {
 	SaveURL(fullURL string, shortURL string) error
 	GetURL(shortURL string) (string, error)
+	Ping() error
 }
 
 type Service struct {
@@ -65,4 +66,15 @@ func (s *Service) GetURL(shortURL string) (string, error) {
 	}
 
 	return fullURL, nil
+}
+
+func (s *Service) Ping() error {
+	err := s.s.Ping()
+
+	if err != nil {
+		return fmt.Errorf("failed to reach store: %w", err)
+		return fmt.Errorf("failed to reach store: %w", err)
+	}
+
+	return nil
 }

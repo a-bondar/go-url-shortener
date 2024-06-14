@@ -25,3 +25,11 @@ func (s *inMemoryStore) GetURL(shortURL string) (string, error) {
 
 	return "", errors.New("URL not found")
 }
+
+func (s *inMemoryStore) Ping() error {
+	return nil
+}
+
+func (s *inMemoryStore) Close() error {
+	return nil
+}

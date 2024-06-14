@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -38,27 +37,21 @@ func Run() error {
 	}(l)
 
 	cfg := config.NewConfig()
-	s, err := store.NewStore(cfg.FileStoragePath)
 
+	s, err := store.NewStore(cfg.DatabaseDSN, cfg.FileStoragePath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 
-	db, err := sql.Open("pgx", cfg.DatabaseDSN)
-
-	if err != nil {
-		return fmt.Errorf("failed to initialize DB: %w", err)
-	}
-
-	defer func(db *sql.DB) {
-		err := db.Close()
+	defer func(s store.Store) {
+		err := s.Close()
 		if err != nil {
-			l.Error("Failed to close DB", zap.Error(err))
+			l.Error("Failed to close store", zap.Error(err))
 		}
-	}(db)
+	}(s)
 
 	svc := service.NewService(s)
-	h := handlers.NewHandler(cfg, svc, l, db)
+	h := handlers.NewHandler(cfg, svc, l)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))
 
