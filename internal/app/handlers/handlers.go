@@ -16,6 +16,7 @@ import (
 type Service interface {
 	SaveURL(fullURL string) (string, error)
 	GetURL(shortURL string) (string, error)
+	Ping() error
 }
 
 type Handler struct {
@@ -125,6 +126,25 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 
 	if err := enc.Encode(resp); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
+	err := h.s.Ping()
+
+	if err != nil {
+		h.logger.Error("Unable to reach DB", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write([]byte(`{"status": "ok"}`)); err != nil {
+		h.logger.Error("Failed to write response", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}

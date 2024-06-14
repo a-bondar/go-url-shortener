@@ -113,3 +113,11 @@ func (s *fileStore) loadFromFile() error {
 
 	return nil
 }
+
+func (s *fileStore) Ping() error {
+	return nil
+}
+
+func (s *fileStore) Close() error {
+	return nil
+}

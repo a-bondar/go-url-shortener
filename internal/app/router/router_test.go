@@ -55,6 +55,10 @@ func (s *serviceMock) GetURL(shortURL string) (string, error) {
 	return "https://hello.world", nil
 }
 
+func (s *serviceMock) Ping() error {
+	return nil
+}
+
 func TestRouter(t *testing.T) {
 	logger := zap.NewNop()
 	cfg := config.NewConfig()

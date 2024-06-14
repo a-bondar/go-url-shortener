@@ -3,12 +3,18 @@ package store
 type Store interface {
 	SaveURL(fullURL string, shortURL string) error
 	GetURL(shortURL string) (string, error)
+	Ping() error
+	Close() error
 }
 
-func NewStore(fName string) (Store, error) {
-	if fName == "" {
-		return newInMemoryStore(), nil
+func NewStore(dsn string, fName string) (Store, error) {
+	if dsn != "" {
+		return newDBStore(dsn)
 	}
 
-	return newFileStore(fName)
+	if fName != "" {
+		return newFileStore(fName)
+	}
+
+	return newInMemoryStore(), nil
 }
