@@ -82,7 +82,7 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
-	var request models.Request
+	var request models.HandleShortenRequest
 	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
@@ -115,7 +115,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := models.Response{
+	resp := models.HandleShortenResponse{
 		Result: resURL,
 	}
 
@@ -125,6 +125,52 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	if err := enc.Encode(resp); err != nil {
+		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
+	var request []models.HandleShortenBatchRequest
+	var buf bytes.Buffer
+
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		h.logger.Error("Failed to read body", zap.Error(err))
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	if err = json.Unmarshal(buf.Bytes(), &request); err != nil {
+		h.logger.Error("Failed to unmarshal request", zap.Error(err))
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	response := make([]models.HandleShortenBatchResponse, 0, len(request))
+
+	// @TODO - вынести в сервис и делать транзакцией в БД
+	for _, req := range request {
+		shortURL, err := h.s.SaveURL(req.OriginalURL)
+
+		if err != nil {
+			h.logger.Error("Failed to shorten URL", zap.Error(err))
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		response = append(response, models.HandleShortenBatchResponse{
+			CorrelationID: req.CorrelationID,
+			ShortURL:      shortURL,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	w.WriteHeader(http.StatusCreated)
+
+	if err := enc.Encode(response); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
