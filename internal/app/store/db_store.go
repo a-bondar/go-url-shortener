@@ -42,14 +42,12 @@ func (s *DBStore) SaveURLsBatch(urls map[string]string) (map[string]string, erro
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	defer func() {
-		if err = tx.Rollback(); err != nil {
-			fmt.Printf("failed to rollback transaction: %v", err)
-		}
-	}()
-
 	stmt, err := tx.Prepare("INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)")
 	if err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return nil, fmt.Errorf("failed to rollback transaction: %w", rollbackErr)
+		}
+
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
 
@@ -65,6 +63,10 @@ func (s *DBStore) SaveURLsBatch(urls map[string]string) (map[string]string, erro
 		_, err = stmt.Exec(fullURL, shortURL)
 
 		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("failed to rollback transaction: %w", rollbackErr)
+			}
+
 			return nil, fmt.Errorf("failed to execute statement: %w", err)
 		}
 
