@@ -168,7 +168,7 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) HandleDatabasePing(w http.ResponseWriter) {
+func (h *Handler) HandleDatabasePing(w http.ResponseWriter, _ *http.Request) {
 	err := h.s.Ping()
 
 	if err != nil {

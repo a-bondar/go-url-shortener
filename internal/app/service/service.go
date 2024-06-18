@@ -12,7 +12,7 @@ import (
 type Store interface {
 	SaveURL(fullURL string, shortURL string) error
 	GetURL(shortURL string) (string, error)
-	SaveBatchURLs(urls map[string]string) (map[string]string, error)
+	SaveURLsBatch(urls map[string]string) (map[string]string, error)
 	Ping() error
 }
 
@@ -86,7 +86,7 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 		fullURLbyCorrID[url.OriginalURL] = url.CorrelationID
 	}
 
-	batchRes, err := s.s.SaveBatchURLs(urlsMap)
+	batchRes, err := s.s.SaveURLsBatch(urlsMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save batch URLs: %w", err)
 	}
