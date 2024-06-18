@@ -16,6 +16,7 @@ import (
 type Service interface {
 	SaveURL(fullURL string) (string, error)
 	GetURL(shortURL string) (string, error)
+	SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error)
 	Ping() error
 }
 
@@ -132,7 +133,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
-	var request []models.HandleShortenBatchRequest
+	var request models.HandleShortenBatchRequest
 	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
@@ -148,36 +149,26 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := make([]models.HandleShortenBatchResponse, 0, len(request))
-
-	// @TODO - вынести в сервис и делать транзакцией в БД
-	for _, req := range request {
-		shortURL, err := h.s.SaveURL(req.OriginalURL)
-
-		if err != nil {
-			h.logger.Error("Failed to shorten URL", zap.Error(err))
-			http.Error(w, "", http.StatusInternalServerError)
-			return
-		}
-
-		response = append(response, models.HandleShortenBatchResponse{
-			CorrelationID: req.CorrelationID,
-			ShortURL:      shortURL,
-		})
+	var response models.HandleShortenBatchResponse
+	response, err = h.s.SaveBatchURLs(request)
+	if err != nil {
+		h.logger.Error("Failed to shorten URLs", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	w.WriteHeader(http.StatusCreated)
 
-	if err := enc.Encode(response); err != nil {
+	if err = enc.Encode(response); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleDatabasePing(w http.ResponseWriter) {
 	err := h.s.Ping()
 
 	if err != nil {

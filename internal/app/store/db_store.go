@@ -35,6 +35,51 @@ func (s *DBStore) SaveURL(fullURL string, shortURL string) error {
 	return nil
 }
 
+func (s *DBStore) SaveURLsBatch(urls map[string]string) (map[string]string, error) {
+	tx, err := s.db.Begin()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+	defer func() {
+		if err = tx.Rollback(); err != nil {
+			fmt.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
+
+	stmt, err := tx.Prepare("INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+	}
+
+	defer func() {
+		if err = stmt.Close(); err != nil {
+			fmt.Printf("failed to close statement: %v\n", err)
+		}
+	}()
+
+	res := make(map[string]string)
+
+	for fullURL, shortURL := range urls {
+		_, err = stmt.Exec(fullURL, shortURL)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute statement: %w", err)
+		}
+
+		res[fullURL] = shortURL
+	}
+
+	err = tx.Commit()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return res, nil
+}
+
 func (s *DBStore) GetURL(shortURL string) (string, error) {
 	var originalURL string
 

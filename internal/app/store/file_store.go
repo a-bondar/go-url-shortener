@@ -39,6 +39,27 @@ func (s *fileStore) SaveURL(fullURL string, shortURL string) error {
 	return s.writeToFile(fullURL, shortURL)
 }
 
+func (s *fileStore) SaveURLsBatch(urls map[string]string) (map[string]string, error) {
+	res := make(map[string]string)
+
+	for fullURL, shortURL := range urls {
+		err := s.inMemoryStore.SaveURL(fullURL, shortURL)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = s.writeToFile(fullURL, shortURL)
+		if err != nil {
+			return nil, err
+		}
+
+		res[fullURL] = shortURL
+	}
+
+	return res, nil
+}
+
 func (s *fileStore) GetURL(shortURL string) (string, error) {
 	return s.inMemoryStore.GetURL(shortURL)
 }
