@@ -12,6 +12,7 @@ import (
 	"github.com/a-bondar/go-url-shortener/internal/app/router"
 	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/a-bondar/go-url-shortener/internal/app/store"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 )
 
@@ -36,14 +37,21 @@ func Run() error {
 	}(l)
 
 	cfg := config.NewConfig()
-	s, err := store.NewStore(cfg.FileStoragePath)
 
+	s, err := store.NewStore(cfg.DatabaseDSN, cfg.FileStoragePath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 
-	svc := service.NewService(s)
-	h := handlers.NewHandler(cfg, svc, l)
+	defer func(s store.Store) {
+		err := s.Close()
+		if err != nil {
+			l.Error("Failed to close store", zap.Error(err))
+		}
+	}(s)
+
+	svc := service.NewService(s, cfg)
+	h := handlers.NewHandler(svc, l)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))
 

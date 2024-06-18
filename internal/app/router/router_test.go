@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
+	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -44,7 +44,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 type serviceMock struct{}
 
 func (s *serviceMock) SaveURL(_ string) (string, error) {
-	return "qw12qw", nil
+	return "http://localhost:8080/qw12qw", nil
 }
 
 func (s *serviceMock) GetURL(shortURL string) (string, error) {
@@ -55,11 +55,27 @@ func (s *serviceMock) GetURL(shortURL string) (string, error) {
 	return "https://hello.world", nil
 }
 
+func (s *serviceMock) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+	res := make([]models.ShortURLCorrelation, 0, len(urls))
+
+	for _, url := range urls {
+		res = append(res, models.ShortURLCorrelation{
+			CorrelationID: url.CorrelationID,
+			ShortURL:      "qw12qw",
+		})
+	}
+
+	return res, nil
+}
+
+func (s *serviceMock) Ping() error {
+	return nil
+}
+
 func TestRouter(t *testing.T) {
 	logger := zap.NewNop()
-	cfg := config.NewConfig()
 	svc := &serviceMock{}
-	h := handlers.NewHandler(cfg, svc, logger)
+	h := handlers.NewHandler(svc, logger)
 
 	ts := httptest.NewServer(Router(h, logger))
 	defer ts.Close()
@@ -116,6 +132,15 @@ func TestRouter(t *testing.T) {
 			body:         `{"url":  "https://hello.world"}`,
 			expectedCode: http.StatusCreated,
 			expectedBody: `{"result": "http://localhost:8080/qw12qw"}`,
+		},
+		{
+			name:   "Status 201 if links was shortened successfully",
+			method: http.MethodPost,
+			path:   "/api/shorten/batch",
+			body: `[{"correlation_id": "1", "original_url": "https://example.com/1"},
+					{"correlation_id": "2", "original_url": "https://example.com/2"}]`,
+			expectedCode: http.StatusCreated,
+			expectedBody: `[{"correlation_id":"1","short_url":"qw12qw"},{"correlation_id":"2","short_url":"qw12qw"}]`,
 		},
 		{
 			name:         "Status 404 if link doesn't exist",
