@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +44,7 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 type serviceMock struct{}
 
 func (s *serviceMock) SaveURL(_ string) (string, error) {
-	return "qw12qw", nil
+	return "http://localhost:8080/qw12qw", nil
 }
 
 func (s *serviceMock) GetURL(shortURL string) (string, error) {
@@ -75,9 +74,8 @@ func (s *serviceMock) Ping() error {
 
 func TestRouter(t *testing.T) {
 	logger := zap.NewNop()
-	cfg := config.NewConfig()
 	svc := &serviceMock{}
-	h := handlers.NewHandler(cfg, svc, logger)
+	h := handlers.NewHandler(svc, logger)
 
 	ts := httptest.NewServer(Router(h, logger))
 	defer ts.Close()

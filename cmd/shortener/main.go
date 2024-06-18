@@ -50,8 +50,8 @@ func Run() error {
 		}
 	}(s)
 
-	svc := service.NewService(s)
-	h := handlers.NewHandler(cfg, svc, l)
+	svc := service.NewService(s, cfg)
+	h := handlers.NewHandler(svc, l)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))
 

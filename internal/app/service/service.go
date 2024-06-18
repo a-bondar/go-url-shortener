@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"time"
 
+	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
 )
 
@@ -17,11 +19,12 @@ type Store interface {
 }
 
 type Service struct {
-	s Store
+	s   Store
+	cfg *config.Config
 }
 
-func NewService(s Store) *Service {
-	return &Service{s: s}
+func NewService(s Store, cfg *config.Config) *Service {
+	return &Service{s: s, cfg: cfg}
 }
 
 const maxRetries = 3
@@ -57,17 +60,32 @@ func (s *Service) shortenURL() (string, error) {
 	return shortenURL, nil
 }
 
+func (s *Service) buildURL(shortenURL string) (string, error) {
+	res, err := url.JoinPath(s.cfg.ShortLinkBaseURL, shortenURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	return res, nil
+}
+
 func (s *Service) SaveURL(fullURL string) (string, error) {
 	shortenURL, err := s.shortenURL()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate unique short URL: %w", err)
 	}
 
-	if err := s.s.SaveURL(fullURL, shortenURL); err != nil {
+	err = s.s.SaveURL(fullURL, shortenURL)
+	if err != nil {
 		return "", fmt.Errorf("failed to save URL: %w", err)
 	}
 
-	return shortenURL, nil
+	resURL, err := s.buildURL(shortenURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to build URL: %w", err)
+	}
+
+	return resURL, nil
 }
 
 func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
@@ -75,15 +93,15 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 	fullURLbyCorrID := make(map[string]string)
 	urlsMap := make(map[string]string)
 
-	for _, url := range urls {
+	for _, URL := range urls {
 		shortURL, err := s.shortenURL()
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unique short URL: %w", err)
 		}
 
-		urlsMap[url.OriginalURL] = shortURL
-		fullURLbyCorrID[url.OriginalURL] = url.CorrelationID
+		urlsMap[URL.OriginalURL] = shortURL
+		fullURLbyCorrID[URL.OriginalURL] = URL.CorrelationID
 	}
 
 	batchRes, err := s.s.SaveURLsBatch(urlsMap)
@@ -93,9 +111,14 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 
 	resp := make([]models.ShortURLCorrelation, 0, len(batchRes))
 	for fullURL, shortURL := range batchRes {
+		resURL, err := s.buildURL(shortURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build URL: %w", err)
+		}
+
 		resp = append(resp, models.ShortURLCorrelation{
 			CorrelationID: fullURLbyCorrID[fullURL],
-			ShortURL:      shortURL,
+			ShortURL:      resURL,
 		})
 	}
 
