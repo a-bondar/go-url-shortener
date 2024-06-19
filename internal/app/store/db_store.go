@@ -2,7 +2,11 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type DBStore struct {
@@ -29,6 +33,20 @@ func (s *DBStore) SaveURL(fullURL string, shortURL string) error {
 	_, err := s.db.Exec("INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)", fullURL, shortURL)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) {
+			var existingShortURL string
+			selectQuery := `
+				SELECT short_url FROM short_links WHERE original_url = $1
+			`
+			err = s.db.QueryRow(selectQuery, fullURL).Scan(&existingShortURL)
+			if err != nil {
+				return fmt.Errorf("failed to get existing short_url: %w", err)
+			}
+
+			return NewURLConflictError(existingShortURL, ErrConflict)
+		}
+
 		return fmt.Errorf("failed to save URL: %w", err)
 	}
 
@@ -95,16 +113,43 @@ func (s *DBStore) GetURL(shortURL string) (string, error) {
 }
 
 func (s *DBStore) createTable() error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
 	query := `
 		CREATE TABLE IF NOT EXISTS short_links (
 		id SERIAL PRIMARY KEY,
 		short_url TEXT NOT NULL UNIQUE,
 		original_url TEXT NOT NULL
 	);`
-	_, err := s.db.Exec(query)
-
+	_, err = tx.Exec(query)
 	if err != nil {
+		txErr := tx.Rollback()
+		if txErr != nil {
+			return fmt.Errorf("failed to rollback transation: %w", txErr)
+		}
+
 		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	indexQuery := `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_original_url ON short_links (original_url);
+	`
+	_, err = tx.Exec(indexQuery)
+	if err != nil {
+		txErr := tx.Rollback()
+		if txErr != nil {
+			return fmt.Errorf("failed to rollback transation: %w", txErr)
+		}
+
+		return fmt.Errorf("failed to create index: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

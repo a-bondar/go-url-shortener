@@ -13,6 +13,13 @@ func newInMemoryStore() *inMemoryStore {
 }
 
 func (s *inMemoryStore) SaveURL(fullURL string, shortURL string) error {
+	// Проверка на конфликт
+	for currentShortURL, currentFullURL := range s.m {
+		if currentFullURL == fullURL {
+			return NewURLConflictError(currentShortURL, ErrConflict)
+		}
+	}
+
 	s.m[shortURL] = fullURL
 
 	return nil

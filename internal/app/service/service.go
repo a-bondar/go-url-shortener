@@ -9,6 +9,7 @@ import (
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
+	"github.com/a-bondar/go-url-shortener/internal/app/store"
 )
 
 type Store interface {
@@ -29,7 +30,10 @@ func NewService(s Store, cfg *config.Config) *Service {
 
 const maxRetries = 3
 const maxShortURLLength = 8
-const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+const (
+	chars                 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	failedToBuildURLError = "failed to build URL: %w"
+)
 
 func generateRandomString(size int) string {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -63,7 +67,7 @@ func (s *Service) shortenURL() (string, error) {
 func (s *Service) buildURL(shortenURL string) (string, error) {
 	res, err := url.JoinPath(s.cfg.ShortLinkBaseURL, shortenURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to build URL: %w", err)
+		return "", fmt.Errorf(failedToBuildURLError, err)
 	}
 
 	return res, nil
@@ -77,12 +81,24 @@ func (s *Service) SaveURL(fullURL string) (string, error) {
 
 	err = s.s.SaveURL(fullURL, shortenURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to save URL: %w", err)
+		if !errors.Is(err, store.ErrConflict) {
+			return "", fmt.Errorf("failed to save URL: %w", err)
+		}
+
+		var conflictErr *store.URLConflictError
+		if errors.As(err, &conflictErr) {
+			resURL, buildErr := s.buildURL(conflictErr.URL)
+			if buildErr != nil {
+				return "", fmt.Errorf(failedToBuildURLError, buildErr)
+			}
+
+			return "", fmt.Errorf("%w", store.NewURLConflictError(resURL, store.ErrConflict))
+		}
 	}
 
 	resURL, err := s.buildURL(shortenURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to build URL: %w", err)
+		return "", fmt.Errorf(failedToBuildURLError, err)
 	}
 
 	return resURL, nil
@@ -113,7 +129,7 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 	for fullURL, shortURL := range batchRes {
 		resURL, err := s.buildURL(shortURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build URL: %w", err)
+			return nil, fmt.Errorf(failedToBuildURLError, err)
 		}
 
 		resp = append(resp, models.ShortURLCorrelation{
