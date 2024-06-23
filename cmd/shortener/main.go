@@ -37,7 +37,6 @@ func Run() error {
 	}(l)
 
 	cfg := config.NewConfig()
-
 	s, err := store.NewStore(context.Background(), store.Config{
 		DatabaseDSN:     cfg.DatabaseDSN,
 		FileStoragePath: cfg.FileStoragePath,

@@ -21,13 +21,7 @@ func newDBStore(ctx context.Context, dsn string) (*DBStore, error) {
 		return nil, fmt.Errorf("unable to create connection pool: %w", err)
 	}
 
-	store := &DBStore{pool: pool}
-	err = store.createTable(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return store, nil
+	return &DBStore{pool: pool}, nil
 }
 
 func initPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
@@ -42,46 +36,6 @@ func initPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	}
 
 	return pool, nil
-}
-
-func (s *DBStore) createTable(ctx context.Context) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	defer func() {
-		err = tx.Rollback(ctx)
-		if err != nil {
-			log.Printf("failed to rollback transaction: %v", err)
-		}
-	}()
-
-	query := `
-		CREATE TABLE IF NOT EXISTS short_links (
-		id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-		short_url VARCHAR(255) NOT NULL UNIQUE,
-		original_url VARCHAR(255) NOT NULL
-	);`
-	_, err = tx.Exec(ctx, query)
-	if err != nil {
-		return fmt.Errorf("failed to create table: %w", err)
-	}
-
-	indexQuery := `
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_original_url ON short_links (original_url);
-	`
-	_, err = tx.Exec(ctx, indexQuery)
-	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
 }
 
 func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) error {

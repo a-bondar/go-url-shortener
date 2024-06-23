@@ -24,3 +24,4 @@ vendor/
 
 #Lint
 golangci-lint
+/db/data/
