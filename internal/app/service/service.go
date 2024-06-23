@@ -105,7 +105,9 @@ func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
 	return resURL, nil
 }
 
-func (s *Service) SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+func (s *Service) SaveBatchURLs(
+	ctx context.Context,
+	urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
 	// Мапа для связи корреляционных идентификаторов и полных URL
 	fullURLbyCorrID := make(map[string]string)
 	urlsMap := make(map[string]string)
