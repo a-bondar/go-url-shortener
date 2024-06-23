@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,10 +15,10 @@ import (
 )
 
 type Service interface {
-	SaveURL(fullURL string) (string, error)
-	GetURL(shortURL string) (string, error)
-	SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error)
-	Ping() error
+	SaveURL(ctx context.Context, fullURL string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, error)
+	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error)
+	Ping(ctx context.Context) error
 }
 
 type Handler struct {
@@ -41,7 +42,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resURL, err := h.s.SaveURL(string(fullURL))
+	resURL, err := h.s.SaveURL(r.Context(), string(fullURL))
 	if err != nil && !errors.Is(err, store.ErrConflict) {
 		h.logger.Error("Failed to shorten URL", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
@@ -66,7 +67,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
 
-	URL, err := h.s.GetURL(linkID)
+	URL, err := h.s.GetURL(r.Context(), linkID)
 
 	if err != nil {
 		h.logger.Error("Failed to get URL", zap.Error(err))
@@ -95,7 +96,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resURL, err := h.s.SaveURL(request.URL)
+	resURL, err := h.s.SaveURL(r.Context(), request.URL)
 	if err != nil && !errors.Is(err, store.ErrConflict) {
 		h.logger.Error("Failed to shorten URL", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
@@ -143,7 +144,7 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response models.HandleShortenBatchResponse
-	response, err = h.s.SaveBatchURLs(request)
+	response, err = h.s.SaveBatchURLs(r.Context(), request)
 	if err != nil {
 		h.logger.Error("Failed to shorten URLs", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
@@ -161,8 +162,8 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) HandleDatabasePing(w http.ResponseWriter, _ *http.Request) {
-	err := h.s.Ping()
+func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
+	err := h.s.Ping(r.Context())
 
 	if err != nil {
 		h.logger.Error("Unable to reach DB", zap.Error(err))

@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -43,11 +44,11 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 
 type serviceMock struct{}
 
-func (s *serviceMock) SaveURL(_ string) (string, error) {
+func (s *serviceMock) SaveURL(_ context.Context, _ string) (string, error) {
 	return "http://localhost:8080/qw12qw", nil
 }
 
-func (s *serviceMock) GetURL(shortURL string) (string, error) {
+func (s *serviceMock) GetURL(_ context.Context, shortURL string) (string, error) {
 	if shortURL != "qw12qw" {
 		return "", errors.New("link not found")
 	}
@@ -55,7 +56,9 @@ func (s *serviceMock) GetURL(shortURL string) (string, error) {
 	return "https://hello.world", nil
 }
 
-func (s *serviceMock) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+func (s *serviceMock) SaveBatchURLs(
+	_ context.Context,
+	urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
 	res := make([]models.ShortURLCorrelation, 0, len(urls))
 
 	for _, url := range urls {
@@ -68,7 +71,7 @@ func (s *serviceMock) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]mod
 	return res, nil
 }
 
-func (s *serviceMock) Ping() error {
+func (s *serviceMock) Ping(_ context.Context) error {
 	return nil
 }
 

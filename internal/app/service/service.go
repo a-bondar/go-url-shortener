@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -13,10 +14,10 @@ import (
 )
 
 type Store interface {
-	SaveURL(fullURL string, shortURL string) error
-	GetURL(shortURL string) (string, error)
-	SaveURLsBatch(urls map[string]string) (map[string]string, error)
-	Ping() error
+	SaveURL(ctx context.Context, fullURL string, shortURL string) error
+	GetURL(ctx context.Context, shortURL string) (string, error)
+	SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error)
+	Ping(ctx context.Context) error
 }
 
 type Service struct {
@@ -46,13 +47,13 @@ func generateRandomString(size int) string {
 	return string(b)
 }
 
-func (s *Service) shortenURL() (string, error) {
+func (s *Service) shortenURL(ctx context.Context) (string, error) {
 	var shortenURL string
 
 	for range maxRetries {
 		shortenURL = generateRandomString(maxShortURLLength)
 
-		if _, err := s.s.GetURL(shortenURL); err != nil {
+		if _, err := s.s.GetURL(ctx, shortenURL); err != nil {
 			break
 		}
 	}
@@ -73,13 +74,13 @@ func (s *Service) buildURL(shortenURL string) (string, error) {
 	return res, nil
 }
 
-func (s *Service) SaveURL(fullURL string) (string, error) {
-	shortenURL, err := s.shortenURL()
+func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
+	shortenURL, err := s.shortenURL(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate unique short URL: %w", err)
 	}
 
-	err = s.s.SaveURL(fullURL, shortenURL)
+	err = s.s.SaveURL(ctx, fullURL, shortenURL)
 	if err != nil {
 		if !errors.Is(err, store.ErrConflict) {
 			return "", fmt.Errorf("failed to save URL: %w", err)
@@ -104,13 +105,13 @@ func (s *Service) SaveURL(fullURL string) (string, error) {
 	return resURL, nil
 }
 
-func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+func (s *Service) SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
 	// Мапа для связи корреляционных идентификаторов и полных URL
 	fullURLbyCorrID := make(map[string]string)
 	urlsMap := make(map[string]string)
 
 	for _, URL := range urls {
-		shortURL, err := s.shortenURL()
+		shortURL, err := s.shortenURL(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unique short URL: %w", err)
@@ -120,7 +121,7 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 		fullURLbyCorrID[URL.OriginalURL] = URL.CorrelationID
 	}
 
-	batchRes, err := s.s.SaveURLsBatch(urlsMap)
+	batchRes, err := s.s.SaveURLsBatch(ctx, urlsMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save batch URLs: %w", err)
 	}
@@ -141,8 +142,8 @@ func (s *Service) SaveBatchURLs(urls []models.OriginalURLCorrelation) ([]models.
 	return resp, nil
 }
 
-func (s *Service) GetURL(shortURL string) (string, error) {
-	fullURL, err := s.s.GetURL(shortURL)
+func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
+	fullURL, err := s.s.GetURL(ctx, shortURL)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to get full URL: %w", err)
@@ -151,9 +152,8 @@ func (s *Service) GetURL(shortURL string) (string, error) {
 	return fullURL, nil
 }
 
-func (s *Service) Ping() error {
-	err := s.s.Ping()
-
+func (s *Service) Ping(ctx context.Context) error {
+	err := s.s.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to reach store: %w", err)
 	}

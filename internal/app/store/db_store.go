@@ -1,27 +1,28 @@
 package store
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DBStore struct {
-	db *sql.DB
+	pool *pgxpool.Pool
 }
 
-func newDBStore(dsn string) (*DBStore, error) {
-	db, err := sql.Open("pgx", dsn)
+func newDBStore(ctx context.Context, dsn string) (*DBStore, error) {
+	pool, err := initPool(ctx, dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open DB: %w", err)
+		return nil, fmt.Errorf("unable to create connection pool: %w", err)
 	}
 
-	store := &DBStore{db: db}
-	err = store.createTable()
-
+	store := &DBStore{pool: pool}
+	err = store.createTable(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -29,8 +30,62 @@ func newDBStore(dsn string) (*DBStore, error) {
 	return store, nil
 }
 
-func (s *DBStore) SaveURL(fullURL string, shortURL string) error {
-	_, err := s.db.Exec("INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)", fullURL, shortURL)
+func initPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DSN: %w", err)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initalize a connection pool: %w", err)
+	}
+
+	return pool, nil
+}
+
+func (s *DBStore) createTable(ctx context.Context) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	defer func() {
+		err = tx.Rollback(ctx)
+		if err != nil {
+			log.Printf("failed to rollback transaction: %v", err)
+		}
+	}()
+
+	query := `
+		CREATE TABLE IF NOT EXISTS short_links (
+		id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+		short_url VARCHAR(255) NOT NULL UNIQUE,
+		original_url VARCHAR(255) NOT NULL
+	);`
+	_, err = tx.Exec(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	indexQuery := `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_original_url ON short_links (original_url);
+	`
+	_, err = tx.Exec(ctx, indexQuery)
+	if err != nil {
+		return fmt.Errorf("failed to create index: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) error {
+	_, err := s.pool.Exec(ctx, "INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)", fullURL, shortURL)
 
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -39,7 +94,7 @@ func (s *DBStore) SaveURL(fullURL string, shortURL string) error {
 			selectQuery := `
 				SELECT short_url FROM short_links WHERE original_url = $1
 			`
-			err = s.db.QueryRow(selectQuery, fullURL).Scan(&existingShortURL)
+			err = s.pool.QueryRow(ctx, selectQuery, fullURL).Scan(&existingShortURL)
 			if err != nil {
 				return fmt.Errorf("failed to get existing short_url: %w", err)
 			}
@@ -53,46 +108,36 @@ func (s *DBStore) SaveURL(fullURL string, shortURL string) error {
 	return nil
 }
 
-func (s *DBStore) SaveURLsBatch(urls map[string]string) (map[string]string, error) {
-	tx, err := s.db.Begin()
-
+func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)")
-	if err != nil {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return nil, fmt.Errorf("failed to rollback transaction: %w", rollbackErr)
-		}
-
-		return nil, fmt.Errorf("failed to prepare statement: %w", err)
-	}
-
 	defer func() {
-		if err = stmt.Close(); err != nil {
-			fmt.Printf("failed to close statement: %v\n", err)
+		err = tx.Rollback(ctx)
+		if err != nil {
+			log.Printf("failed to rollback transaction: %v", err)
 		}
 	}()
+
+	_, err = tx.Prepare(ctx, "insertSmt", "INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+	}
 
 	res := make(map[string]string)
 
 	for fullURL, shortURL := range urls {
-		_, err = stmt.Exec(fullURL, shortURL)
-
+		_, err = tx.Exec(ctx, "insertSmt", fullURL, shortURL)
 		if err != nil {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				return nil, fmt.Errorf("failed to rollback transaction: %w", rollbackErr)
-			}
-
 			return nil, fmt.Errorf("failed to execute statement: %w", err)
 		}
 
 		res[fullURL] = shortURL
 	}
 
-	err = tx.Commit()
-
+	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -100,11 +145,10 @@ func (s *DBStore) SaveURLsBatch(urls map[string]string) (map[string]string, erro
 	return res, nil
 }
 
-func (s *DBStore) GetURL(shortURL string) (string, error) {
+func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, error) {
 	var originalURL string
 
-	err := s.db.QueryRow("SELECT original_url FROM short_links WHERE short_url = $1", shortURL).Scan(&originalURL)
-
+	err := s.pool.QueryRow(ctx, "SELECT original_url FROM short_links WHERE short_url = $1", shortURL).Scan(&originalURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to get full URL: %w", err)
 	}
@@ -112,52 +156,8 @@ func (s *DBStore) GetURL(shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (s *DBStore) createTable() error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	query := `
-		CREATE TABLE IF NOT EXISTS short_links (
-		id SERIAL PRIMARY KEY,
-		short_url TEXT NOT NULL UNIQUE,
-		original_url TEXT NOT NULL
-	);`
-	_, err = tx.Exec(query)
-	if err != nil {
-		txErr := tx.Rollback()
-		if txErr != nil {
-			return fmt.Errorf("failed to rollback transation: %w", txErr)
-		}
-
-		return fmt.Errorf("failed to create table: %w", err)
-	}
-
-	indexQuery := `
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_original_url ON short_links (original_url);
-	`
-	_, err = tx.Exec(indexQuery)
-	if err != nil {
-		txErr := tx.Rollback()
-		if txErr != nil {
-			return fmt.Errorf("failed to rollback transation: %w", txErr)
-		}
-
-		return fmt.Errorf("failed to create index: %w", err)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-func (s *DBStore) Ping() error {
-	err := s.db.Ping()
-
+func (s *DBStore) Ping(ctx context.Context) error {
+	err := s.pool.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to ping DB: %w", err)
 	}
@@ -165,12 +165,6 @@ func (s *DBStore) Ping() error {
 	return nil
 }
 
-func (s *DBStore) Close() error {
-	err := s.db.Close()
-
-	if err != nil {
-		return fmt.Errorf("failed to close DB: %w", err)
-	}
-
-	return nil
+func (s *DBStore) Close() {
+	s.pool.Close()
 }

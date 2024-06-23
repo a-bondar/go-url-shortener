@@ -1,6 +1,9 @@
 package store
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type inMemoryStore struct {
 	m map[string]string
@@ -12,7 +15,7 @@ func newInMemoryStore() *inMemoryStore {
 	}
 }
 
-func (s *inMemoryStore) SaveURL(fullURL string, shortURL string) error {
+func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL string) error {
 	// Проверка на конфликт
 	for currentShortURL, currentFullURL := range s.m {
 		if currentFullURL == fullURL {
@@ -25,7 +28,7 @@ func (s *inMemoryStore) SaveURL(fullURL string, shortURL string) error {
 	return nil
 }
 
-func (s *inMemoryStore) GetURL(shortURL string) (string, error) {
+func (s *inMemoryStore) GetURL(_ context.Context, shortURL string) (string, error) {
 	if URL, ok := s.m[shortURL]; ok {
 		return URL, nil
 	}
@@ -33,7 +36,7 @@ func (s *inMemoryStore) GetURL(shortURL string) (string, error) {
 	return "", errors.New("URL not found")
 }
 
-func (s *inMemoryStore) SaveURLsBatch(urls map[string]string) (map[string]string, error) {
+func (s *inMemoryStore) SaveURLsBatch(_ context.Context, urls map[string]string) (map[string]string, error) {
 	res := make(map[string]string)
 
 	for fullURL, shortURL := range urls {
@@ -44,10 +47,8 @@ func (s *inMemoryStore) SaveURLsBatch(urls map[string]string) (map[string]string
 	return res, nil
 }
 
-func (s *inMemoryStore) Ping() error {
+func (s *inMemoryStore) Ping(_ context.Context) error {
 	return nil
 }
 
-func (s *inMemoryStore) Close() error {
-	return nil
-}
+func (s *inMemoryStore) Close() {}
