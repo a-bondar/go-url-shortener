@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -41,9 +43,9 @@ func NewURLConflictError(shortURL string, err error) error {
 	}
 }
 
-func NewStore(ctx context.Context, cfg Config) (Store, error) {
+func NewStore(ctx context.Context, cfg Config, logger *zap.Logger) (Store, error) {
 	if cfg.DatabaseDSN != "" {
-		return newDBStore(ctx, cfg.DatabaseDSN)
+		return newDBStore(ctx, cfg.DatabaseDSN, logger)
 	}
 
 	if cfg.FileStoragePath != "" {

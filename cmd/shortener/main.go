@@ -40,7 +40,7 @@ func Run() error {
 	s, err := store.NewStore(context.Background(), store.Config{
 		DatabaseDSN:     cfg.DatabaseDSN,
 		FileStoragePath: cfg.FileStoragePath,
-	})
+	}, l)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
