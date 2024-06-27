@@ -92,10 +92,10 @@ func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
 	}
 
 	if shortenURL != resultedShortURL {
-		return resultedShortURL, ErrConflict
+		err = ErrConflict
 	}
 
-	return resURL, nil
+	return resURL, err
 }
 
 func (s *Service) SaveBatchURLs(
