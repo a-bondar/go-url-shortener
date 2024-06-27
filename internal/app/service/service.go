@@ -10,11 +10,10 @@ import (
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
-	"github.com/a-bondar/go-url-shortener/internal/app/store"
 )
 
 type Store interface {
-	SaveURL(ctx context.Context, fullURL string, shortURL string) error
+	SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error)
 	GetURL(ctx context.Context, shortURL string) (string, error)
 	SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error)
 	Ping(ctx context.Context) error
@@ -35,6 +34,8 @@ const (
 	chars                 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	failedToBuildURLError = "failed to build URL: %w"
 )
+
+var ErrConflict = errors.New("data conflict")
 
 func generateRandomString(size int) string {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -80,26 +81,18 @@ func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
 		return "", fmt.Errorf("failed to generate unique short URL: %w", err)
 	}
 
-	err = s.s.SaveURL(ctx, fullURL, shortenURL)
+	resultedShortURL, err := s.s.SaveURL(ctx, fullURL, shortenURL)
 	if err != nil {
-		if !errors.Is(err, store.ErrConflict) {
-			return "", fmt.Errorf("failed to save URL: %w", err)
-		}
-
-		var conflictErr *store.URLConflictError
-		if errors.As(err, &conflictErr) {
-			resURL, buildErr := s.buildURL(conflictErr.URL)
-			if buildErr != nil {
-				return "", fmt.Errorf(failedToBuildURLError, buildErr)
-			}
-
-			return "", fmt.Errorf("%w", store.NewURLConflictError(resURL, store.ErrConflict))
-		}
+		return "", fmt.Errorf("failed to save URL: %w", err)
 	}
 
-	resURL, err := s.buildURL(shortenURL)
+	resURL, err := s.buildURL(resultedShortURL)
 	if err != nil {
 		return "", fmt.Errorf(failedToBuildURLError, err)
+	}
+
+	if shortenURL != resultedShortURL {
+		return resultedShortURL, ErrConflict
 	}
 
 	return resURL, nil

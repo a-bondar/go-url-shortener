@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
-	"github.com/a-bondar/go-url-shortener/internal/app/store"
+	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -42,21 +42,19 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resURL, err := h.s.SaveURL(r.Context(), string(fullURL))
-	if err != nil && !errors.Is(err, store.ErrConflict) {
-		h.logger.Error("Failed to shorten URL", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
 	statusCode := http.StatusCreated
-	var conflictErr *store.URLConflictError
-	if errors.As(err, &conflictErr) {
-		resURL = conflictErr.URL
+	resURL, err := h.s.SaveURL(r.Context(), string(fullURL))
+	if err != nil {
+		if !errors.Is(err, service.ErrConflict) {
+			h.logger.Error("Failed to shorten URL", zap.Error(err))
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
 		statusCode = http.StatusConflict
 	}
-	w.WriteHeader(statusCode)
 
+	w.WriteHeader(statusCode)
 	if _, err := w.Write([]byte(resURL)); err != nil {
 		h.logger.Error("Failed to write result", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
@@ -96,17 +94,15 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resURL, err := h.s.SaveURL(r.Context(), request.URL)
-	if err != nil && !errors.Is(err, store.ErrConflict) {
-		h.logger.Error("Failed to shorten URL", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
 	statusCode := http.StatusCreated
-	var conflictErr *store.URLConflictError
-	if errors.As(err, &conflictErr) {
-		resURL = conflictErr.URL
+	resURL, err := h.s.SaveURL(r.Context(), request.URL)
+	if err != nil {
+		if !errors.Is(err, service.ErrConflict) {
+			h.logger.Error("Failed to shorten URL", zap.Error(err))
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
 		statusCode = http.StatusConflict
 	}
 

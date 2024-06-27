@@ -2,9 +2,6 @@ package store
 
 import (
 	"context"
-	"errors"
-	"fmt"
-
 	"go.uber.org/zap"
 )
 
@@ -14,33 +11,11 @@ type Config struct {
 }
 
 type Store interface {
-	SaveURL(ctx context.Context, fullURL string, shortURL string) error
+	SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error)
 	GetURL(ctx context.Context, shortURL string) (string, error)
 	SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error)
 	Ping(ctx context.Context) error
 	Close()
-}
-
-var ErrConflict = errors.New("data conflict")
-
-type URLConflictError struct {
-	Err error
-	URL string
-}
-
-func (uce *URLConflictError) Error() string {
-	return fmt.Sprintf("[%s] %v", uce.URL, uce.Err)
-}
-
-func (uce *URLConflictError) Unwrap() error {
-	return uce.Err
-}
-
-func NewURLConflictError(shortURL string, err error) error {
-	return &URLConflictError{
-		URL: shortURL,
-		Err: err,
-	}
 }
 
 func NewStore(ctx context.Context, cfg Config, logger *zap.Logger) (Store, error) {

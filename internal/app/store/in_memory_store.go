@@ -15,17 +15,17 @@ func newInMemoryStore() *inMemoryStore {
 	}
 }
 
-func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL string) error {
+func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL string) (string, error) {
 	// Проверка на конфликт
 	for currentShortURL, currentFullURL := range s.m {
 		if currentFullURL == fullURL {
-			return NewURLConflictError(currentShortURL, ErrConflict)
+			return currentShortURL, nil
 		}
 	}
 
 	s.m[shortURL] = fullURL
 
-	return nil
+	return shortURL, nil
 }
 
 func (s *inMemoryStore) GetURL(_ context.Context, shortURL string) (string, error) {

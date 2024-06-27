@@ -30,32 +30,35 @@ func newFileStore(ctx context.Context, fName string) (*fileStore, error) {
 	return store, nil
 }
 
-func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string) error {
-	err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
-
+func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error) {
+	savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return s.writeToFile(fullURL, shortURL)
+	err = s.writeToFile(fullURL, savedShortURL)
+	if err != nil {
+		return "", err
+	}
+
+	return savedShortURL, nil
 }
 
 func (s *fileStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
 	res := make(map[string]string)
 
 	for fullURL, shortURL := range urls {
-		err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
-
+		savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
 		if err != nil {
 			return nil, err
 		}
 
-		err = s.writeToFile(fullURL, shortURL)
+		err = s.writeToFile(fullURL, savedShortURL)
 		if err != nil {
 			return nil, err
 		}
 
-		res[fullURL] = shortURL
+		res[fullURL] = savedShortURL
 	}
 
 	return res, nil
@@ -124,7 +127,7 @@ func (s *fileStore) loadFromFile(ctx context.Context) error {
 			return fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 
-		if err := s.inMemoryStore.SaveURL(ctx, data.OriginalURL, data.ShortURL); err != nil {
+		if _, err := s.inMemoryStore.SaveURL(ctx, data.OriginalURL, data.ShortURL); err != nil {
 			return fmt.Errorf("failed to save URL: %w", err)
 		}
 	}

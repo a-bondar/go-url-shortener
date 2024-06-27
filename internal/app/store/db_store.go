@@ -11,8 +11,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -70,29 +68,25 @@ func initPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) error {
-	_, err := s.pool.Exec(ctx, "INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)", fullURL, shortURL)
-
+func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error) {
+	var resultShortURL string
+	query := `
+		WITH new_url AS (
+			INSERT INTO short_links(short_url, original_url)
+			VALUES ($1, $2)
+			ON CONFLICT (original_url) DO NOTHING
+			RETURNING short_url
+		)
+		SELECT short_url FROM new_url
+		UNION
+		SELECT short_url FROM short_links WHERE original_url = $2
+	`
+	err := s.pool.QueryRow(ctx, query, shortURL, fullURL).Scan(&resultShortURL)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) &&
-			pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) && pgErr.ConstraintName == "short_links_original_url_key" {
-			var existingShortURL string
-			selectQuery := `
-				SELECT short_url FROM short_links WHERE original_url = $1
-			`
-			err = s.pool.QueryRow(ctx, selectQuery, fullURL).Scan(&existingShortURL)
-			if err != nil {
-				return fmt.Errorf("failed to get existing short_url: %w", err)
-			}
-
-			return NewURLConflictError(existingShortURL, ErrConflict)
-		}
-
-		return fmt.Errorf("failed to save URL: %w", err)
+		return "", fmt.Errorf("failed to save URL: %w", err)
 	}
 
-	return nil
+	return resultShortURL, nil
 }
 
 func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
