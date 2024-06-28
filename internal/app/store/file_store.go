@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,13 +16,13 @@ type fileStore struct {
 	fName         string
 }
 
-func newFileStore(fName string) (*fileStore, error) {
+func newFileStore(ctx context.Context, fName string) (*fileStore, error) {
 	store := &fileStore{
 		inMemoryStore: newInMemoryStore(),
 		fName:         fName,
 	}
 
-	err := store.loadFromFile()
+	err := store.loadFromFile(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -29,18 +30,42 @@ func newFileStore(fName string) (*fileStore, error) {
 	return store, nil
 }
 
-func (s *fileStore) SaveURL(fullURL string, shortURL string) error {
-	err := s.inMemoryStore.SaveURL(fullURL, shortURL)
-
+func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error) {
+	savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return s.writeToFile(fullURL, shortURL)
+	err = s.writeToFile(fullURL, savedShortURL)
+	if err != nil {
+		return "", err
+	}
+
+	return savedShortURL, nil
 }
 
-func (s *fileStore) GetURL(shortURL string) (string, error) {
-	return s.inMemoryStore.GetURL(shortURL)
+func (s *fileStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
+	res := make(map[string]string)
+
+	for fullURL, shortURL := range urls {
+		savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
+		if err != nil {
+			return nil, err
+		}
+
+		err = s.writeToFile(fullURL, savedShortURL)
+		if err != nil {
+			return nil, err
+		}
+
+		res[fullURL] = savedShortURL
+	}
+
+	return res, nil
+}
+
+func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, error) {
+	return s.inMemoryStore.GetURL(ctx, shortURL)
 }
 
 func (s *fileStore) writeToFile(fullURL string, shortURL string) error {
@@ -77,7 +102,7 @@ func (s *fileStore) writeToFile(fullURL string, shortURL string) error {
 	return nil
 }
 
-func (s *fileStore) loadFromFile() error {
+func (s *fileStore) loadFromFile(ctx context.Context) error {
 	file, err := os.Open(s.fName)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -87,12 +112,12 @@ func (s *fileStore) loadFromFile() error {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 
-	defer func(file *os.File) {
-		err := file.Close()
+	defer func() {
+		err = file.Close()
 		if err != nil {
 			fmt.Println("Error closing file:", err)
 		}
-	}(file)
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -102,7 +127,7 @@ func (s *fileStore) loadFromFile() error {
 			return fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 
-		if err := s.inMemoryStore.SaveURL(data.OriginalURL, data.ShortURL); err != nil {
+		if _, err := s.inMemoryStore.SaveURL(ctx, data.OriginalURL, data.ShortURL); err != nil {
 			return fmt.Errorf("failed to save URL: %w", err)
 		}
 	}
@@ -113,3 +138,9 @@ func (s *fileStore) loadFromFile() error {
 
 	return nil
 }
+
+func (s *fileStore) Ping(_ context.Context) error {
+	return nil
+}
+
+func (s *fileStore) Close() {}

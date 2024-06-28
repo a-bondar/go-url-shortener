@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -36,14 +37,18 @@ func Run() error {
 	}(l)
 
 	cfg := config.NewConfig()
-	s, err := store.NewStore(cfg.FileStoragePath)
-
+	s, err := store.NewStore(context.Background(), store.Config{
+		DatabaseDSN:     cfg.DatabaseDSN,
+		FileStoragePath: cfg.FileStoragePath,
+	}, l)
 	if err != nil {
 		return fmt.Errorf("failed to initialize store: %w", err)
 	}
 
-	svc := service.NewService(s)
-	h := handlers.NewHandler(cfg, svc, l)
+	defer s.Close()
+
+	svc := service.NewService(s, cfg)
+	h := handlers.NewHandler(svc, l)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))
 
