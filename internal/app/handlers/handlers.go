@@ -5,19 +5,28 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/a-bondar/go-url-shortener/internal/app/middleware"
 	"io"
 	"net/http"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/a-bondar/go-url-shortener/internal/app/service"
+	"github.com/a-bondar/go-url-shortener/internal/app/store"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
 
+const (
+	contentType     = "Content-Type"
+	applicationJSON = "application/json"
+)
+
 type Service interface {
-	SaveURL(ctx context.Context, fullURL string) (string, error)
-	GetURL(ctx context.Context, shortURL string) (string, error)
-	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error)
+	SaveURL(ctx context.Context, fullURL string, userID string) (string, error)
+	GetURL(ctx context.Context, shortURL string, userID string) (string, error)
+	GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error)
+	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation,
+		userID string) ([]models.ShortURLCorrelation, error)
 	Ping(ctx context.Context) error
 }
 
@@ -35,15 +44,15 @@ func NewHandler(s Service, logger *zap.Logger) *Handler {
 
 func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	fullURL, err := io.ReadAll(r.Body)
-
 	if err != nil {
 		h.logger.Error("Failed to read body", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
 	statusCode := http.StatusCreated
-	resURL, err := h.s.SaveURL(r.Context(), string(fullURL))
+	resURL, err := h.s.SaveURL(r.Context(), string(fullURL), userID)
 	if err != nil {
 		if !errors.Is(err, service.ErrConflict) {
 			h.logger.Error("Failed to shorten URL", zap.Error(err))
@@ -64,8 +73,8 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
-
-	URL, err := h.s.GetURL(r.Context(), linkID)
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	URL, err := h.s.GetURL(r.Context(), linkID, userID)
 
 	if err != nil {
 		h.logger.Error("Failed to get URL", zap.Error(err))
@@ -81,7 +90,6 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
-
 	if err != nil {
 		h.logger.Error("Failed to read body", zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
@@ -94,8 +102,9 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
 	statusCode := http.StatusCreated
-	resURL, err := h.s.SaveURL(r.Context(), request.URL)
+	resURL, err := h.s.SaveURL(r.Context(), request.URL, userID)
 	if err != nil {
 		if !errors.Is(err, service.ErrConflict) {
 			h.logger.Error("Failed to shorten URL", zap.Error(err))
@@ -110,7 +119,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		Result: resURL,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, applicationJSON)
 
 	enc := json.NewEncoder(w)
 	w.WriteHeader(statusCode)
@@ -140,14 +149,15 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response models.HandleShortenBatchResponse
-	response, err = h.s.SaveBatchURLs(r.Context(), request)
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	response, err = h.s.SaveBatchURLs(r.Context(), request, userID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URLs", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, applicationJSON)
 	enc := json.NewEncoder(w)
 	w.WriteHeader(http.StatusCreated)
 
@@ -160,19 +170,48 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
 	err := h.s.Ping(r.Context())
-
 	if err != nil {
 		h.logger.Error("Unable to reach DB", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, applicationJSON)
 	w.WriteHeader(http.StatusOK)
 
 	if _, err := w.Write([]byte(`{"status": "ok"}`)); err != nil {
 		h.logger.Error("Failed to write response", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	userURLs, err := h.s.GetURLs(r.Context(), userID)
+
+	if err != nil {
+		if !errors.Is(err, store.ErrUserHasNoURLs) {
+			h.logger.Error("Failed to get user URLs", zap.Error(err))
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	buf := new(bytes.Buffer)
+	enc := json.NewEncoder(buf)
+	if err = enc.Encode(userURLs); err != nil {
+		h.logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(contentType, applicationJSON)
+	w.WriteHeader(http.StatusOK)
+	if _, err = w.Write(buf.Bytes()); err != nil {
+		h.logger.Error("Failed to send response", zap.Error(err))
 	}
 }

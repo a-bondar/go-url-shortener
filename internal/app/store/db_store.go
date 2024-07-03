@@ -68,12 +68,12 @@ func initPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error) {
+func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error) {
 	var resultShortURL string
 	query := `
 		WITH new_url AS (
-			INSERT INTO short_links(short_url, original_url)
-			VALUES ($1, $2)
+			INSERT INTO short_links(short_url, original_url, user_id)
+			VALUES ($1, $2, $3)
 			ON CONFLICT (original_url) DO NOTHING
 			RETURNING short_url
 		)
@@ -81,7 +81,7 @@ func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) 
 		UNION
 		SELECT short_url FROM short_links WHERE original_url = $2
 	`
-	err := s.pool.QueryRow(ctx, query, shortURL, fullURL).Scan(&resultShortURL)
+	err := s.pool.QueryRow(ctx, query, shortURL, fullURL, userID).Scan(&resultShortURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to save URL: %w", err)
 	}
@@ -89,11 +89,11 @@ func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string) 
 	return resultShortURL, nil
 }
 
-func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
-	query := `INSERT INTO short_links (original_url, short_url) VALUES ($1, $2)`
+func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error) {
+	query := `INSERT INTO short_links (original_url, short_url, user_id) VALUES ($1, $2, $3)`
 	batch := &pgx.Batch{}
 	for fullURL, shortURL := range urls {
-		batch.Queue(query, fullURL, shortURL)
+		batch.Queue(query, fullURL, shortURL, userID)
 	}
 
 	results := s.pool.SendBatch(ctx, batch)
@@ -117,15 +117,48 @@ func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (ma
 	return res, nil
 }
 
-func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, error) {
+func (s *DBStore) GetURL(ctx context.Context, shortURL string, userID string) (string, error) {
 	var originalURL string
-
-	err := s.pool.QueryRow(ctx, "SELECT original_url FROM short_links WHERE short_url = $1", shortURL).Scan(&originalURL)
+	err := s.pool.QueryRow(
+		ctx,
+		"SELECT original_url FROM short_links WHERE short_url = $1 AND user_id = $2", shortURL, userID,
+	).Scan(&originalURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to get full URL: %w", err)
 	}
 
 	return originalURL, nil
+}
+
+func (s *DBStore) GetURLs(ctx context.Context, userID string) (map[string]string, error) {
+	rows, err := s.pool.Query(ctx, "SELECT short_url, original_url FROM short_links WHERE user_id = $1", userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user URLs: %w", err)
+	}
+
+	defer rows.Close()
+
+	urls := make(map[string]string)
+	for rows.Next() {
+		var shortURL, fullURL string
+
+		err = rows.Scan(&shortURL, &fullURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		urls[shortURL] = fullURL
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error reading rows: %w", err)
+	}
+
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("%w: no URLs found for user", ErrUserHasNoURLs)
+	}
+
+	return urls, nil
 }
 
 func (s *DBStore) Ping(ctx context.Context) error {
