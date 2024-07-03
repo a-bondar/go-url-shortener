@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/a-bondar/go-url-shortener/internal/app/middleware"
 	"io"
 	"net/http"
 
+	"github.com/a-bondar/go-url-shortener/internal/app/middleware"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/a-bondar/go-url-shortener/internal/app/service"
 	"github.com/a-bondar/go-url-shortener/internal/app/store"
