@@ -189,7 +189,7 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("auth_token")
 	if err != nil {
 		h.logger.Error("Cannot get auth cookie", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
