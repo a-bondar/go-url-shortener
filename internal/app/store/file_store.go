@@ -65,8 +65,8 @@ func (s *fileStore) SaveURLsBatch(
 	return res, nil
 }
 
-func (s *fileStore) GetURL(ctx context.Context, shortURL string, userID string) (string, error) {
-	return s.inMemoryStore.GetURL(ctx, shortURL, userID)
+func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, error) {
+	return s.inMemoryStore.GetURL(ctx, shortURL)
 }
 
 func (s *fileStore) GetURLs(ctx context.Context, userID string) (map[string]string, error) {

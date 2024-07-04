@@ -49,7 +49,7 @@ func GetUserIDFromContext(ctx context.Context) (string, bool) {
 	return userID, ok
 }
 
-func getUserID(tokenString string) (userID string, err error) {
+func GetUserID(tokenString string) (userID string, err error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(
 		tokenString,
@@ -74,39 +74,40 @@ func getUserID(tokenString string) (userID string, err error) {
 func WithAuth(logger *zap.Logger) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var userID string
 			cookie, err := r.Cookie("auth_token")
 			if err != nil {
-				// Если нет куки с токеном
-				if errors.Is(err, http.ErrNoCookie) {
-					userID := uuid.New().String()
-					token, createTokenErr := CreateAccessToken(userID)
-					if createTokenErr != nil {
-						logger.Error("Cannot create access token", zap.Error(createTokenErr))
-						http.Error(w, "", http.StatusInternalServerError)
-						return
-					}
-
-					// Сетим куку с токеном
-					http.SetCookie(w, &http.Cookie{
-						Name:     "auth_token",
-						Value:    token,
-						Expires:  time.Now().Add(tokenExp),
-						HttpOnly: true,
-					})
-					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				if !errors.Is(err, http.ErrNoCookie) {
+					logger.Error("Cannot get cookie", zap.Error(err))
+					http.Error(w, "", http.StatusInternalServerError)
 					return
 				}
 
-				logger.Error("Cannot get cookie", zap.Error(err))
-				http.Error(w, "", http.StatusInternalServerError)
-				return
+				// Если нет куки с токеном
+				userID = uuid.New().String()
+				token, createTokenErr := CreateAccessToken(userID)
+				if createTokenErr != nil {
+					logger.Error("Cannot create access token", zap.Error(createTokenErr))
+					http.Error(w, "", http.StatusInternalServerError)
+					return
+				}
+
+				// Сетим куку с токеном
+				http.SetCookie(w, &http.Cookie{
+					Name:     "auth_token",
+					Value:    token,
+					Expires:  time.Now().Add(tokenExp),
+					HttpOnly: true,
+				})
 			}
 
-			userID, err := getUserID(cookie.Value)
-			if err != nil {
-				logger.Error("Cannot get userID", zap.Error(err))
-				http.Error(w, "", http.StatusInternalServerError)
-				return
+			if userID == "" {
+				userID, err = GetUserID(cookie.Value)
+				if err != nil {
+					logger.Error("Cannot get userID", zap.Error(err))
+					http.Error(w, "", http.StatusUnauthorized)
+					return
+				}
 			}
 
 			// Прокидываем userID из куки в контекст

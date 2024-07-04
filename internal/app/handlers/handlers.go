@@ -23,7 +23,7 @@ const (
 
 type Service interface {
 	SaveURL(ctx context.Context, fullURL string, userID string) (string, error)
-	GetURL(ctx context.Context, shortURL string, userID string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, error)
 	GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error)
 	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation,
 		userID string) ([]models.ShortURLCorrelation, error)
@@ -73,8 +73,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
-	userID, _ := middleware.GetUserIDFromContext(r.Context())
-	URL, err := h.s.GetURL(r.Context(), linkID, userID)
+	URL, err := h.s.GetURL(r.Context(), linkID)
 
 	if err != nil {
 		h.logger.Error("Failed to get URL", zap.Error(err))
@@ -187,7 +186,20 @@ func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
-	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	cookie, err := r.Cookie("auth_token")
+	if err != nil {
+		h.logger.Error("Cannot get auth cookie", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := middleware.GetUserID(cookie.Value)
+	if err != nil {
+		h.logger.Error("Cannot get userID", zap.Error(err))
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	userURLs, err := h.s.GetURLs(r.Context(), userID)
 
 	if err != nil {

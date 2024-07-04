@@ -14,7 +14,7 @@ import (
 
 type Store interface {
 	SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error)
-	GetURL(ctx context.Context, shortURL string, userID string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, error)
 	GetURLs(ctx context.Context, userID string) (map[string]string, error)
 	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
@@ -49,13 +49,13 @@ func generateRandomString(size int) string {
 	return string(b)
 }
 
-func (s *Service) shortenURL(ctx context.Context, userID string) (string, error) {
+func (s *Service) shortenURL(ctx context.Context) (string, error) {
 	var shortenURL string
 
 	for range maxRetries {
 		shortenURL = generateRandomString(maxShortURLLength)
 
-		if _, err := s.s.GetURL(ctx, shortenURL, userID); err != nil {
+		if _, err := s.s.GetURL(ctx, shortenURL); err != nil {
 			break
 		}
 	}
@@ -77,7 +77,7 @@ func (s *Service) buildURL(shortenURL string) (string, error) {
 }
 
 func (s *Service) SaveURL(ctx context.Context, fullURL string, userID string) (string, error) {
-	shortenURL, err := s.shortenURL(ctx, userID)
+	shortenURL, err := s.shortenURL(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate unique short URL: %w", err)
 	}
@@ -109,7 +109,7 @@ func (s *Service) SaveBatchURLs(
 	urlsMap := make(map[string]string)
 
 	for _, URL := range urls {
-		shortURL, err := s.shortenURL(ctx, userID)
+		shortURL, err := s.shortenURL(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unique short URL: %w", err)
@@ -140,8 +140,8 @@ func (s *Service) SaveBatchURLs(
 	return resp, nil
 }
 
-func (s *Service) GetURL(ctx context.Context, shortURL string, userID string) (string, error) {
-	fullURL, err := s.s.GetURL(ctx, shortURL, userID)
+func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
+	fullURL, err := s.s.GetURL(ctx, shortURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to get full URL: %w", err)
 	}
