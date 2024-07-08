@@ -58,12 +58,12 @@ func (s *serviceMock) SaveURL(_ context.Context, _ string, _ string) (string, er
 	return "http://localhost:8080/qw12qw", nil
 }
 
-func (s *serviceMock) GetURL(_ context.Context, shortURL string) (string, error) {
+func (s *serviceMock) GetURL(_ context.Context, shortURL string) (string, bool, error) {
 	if shortURL != "qw12qw" {
-		return "", errors.New("link not found")
+		return "", false, errors.New("link not found")
 	}
 
-	return "https://hello.world", nil
+	return "https://hello.world", false, nil
 }
 
 func (s *serviceMock) GetURLs(_ context.Context, _ string) ([]models.URLsPair, error) {

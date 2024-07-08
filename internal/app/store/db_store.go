@@ -117,14 +117,19 @@ func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string, use
 	return res, nil
 }
 
-func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, error) {
-	var originalURL string
-	err := s.pool.QueryRow(ctx, "SELECT original_url FROM short_links WHERE short_url = $1", shortURL).Scan(&originalURL)
+func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
+	var (
+		originalURL string
+		deleted     bool
+	)
+	err := s.pool.
+		QueryRow(ctx, "SELECT original_url, deleted FROM short_links WHERE short_url = $1", shortURL).
+		Scan(&originalURL, &deleted)
 	if err != nil {
-		return "", fmt.Errorf("failed to get full URL: %w", err)
+		return "", false, fmt.Errorf("failed to get full URL: %w", err)
 	}
 
-	return originalURL, nil
+	return originalURL, deleted, nil
 }
 
 func (s *DBStore) GetURLs(ctx context.Context, userID string) (map[string]string, error) {

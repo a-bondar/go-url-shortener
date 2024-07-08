@@ -23,7 +23,7 @@ const (
 
 type Service interface {
 	SaveURL(ctx context.Context, fullURL string, userID string) (string, error)
-	GetURL(ctx context.Context, shortURL string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error)
 	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation,
 		userID string) ([]models.ShortURLCorrelation, error)
@@ -73,11 +73,16 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	linkID := chi.URLParam(r, "linkID")
-	URL, err := h.s.GetURL(r.Context(), linkID)
+	URL, deleted, err := h.s.GetURL(r.Context(), linkID)
 
 	if err != nil {
 		h.logger.Error("Failed to get URL", zap.Error(err))
 		http.Error(w, `Link not found`, http.StatusNotFound)
+		return
+	}
+
+	if deleted {
+		w.WriteHeader(http.StatusGone)
 		return
 	}
 
@@ -226,4 +231,25 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 	if _, err = w.Write(buf.Bytes()); err != nil {
 		h.logger.Error("Failed to send response", zap.Error(err))
 	}
+}
+
+func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	var request []string
+	var buf bytes.Buffer
+
+	if _, err := buf.ReadFrom(r.Body); err != nil {
+		h.logger.Error("Failed to read body", zap.Error(err))
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	if err := json.Unmarshal(buf.Bytes(), &request); err != nil {
+		h.logger.Error("Failed to unmarshal request", zap.Error(err))
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	// @TODO - implement deletion logic
+
+	w.WriteHeader(http.StatusAccepted)
 }

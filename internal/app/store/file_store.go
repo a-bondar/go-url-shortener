@@ -36,7 +36,7 @@ func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string
 		return "", err
 	}
 
-	err = s.writeToFile(fullURL, savedShortURL, userID)
+	err = s.writeToFile(fullURL, savedShortURL, userID, false)
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +54,7 @@ func (s *fileStore) SaveURLsBatch(
 			return nil, err
 		}
 
-		err = s.writeToFile(fullURL, savedShortURL, userID)
+		err = s.writeToFile(fullURL, savedShortURL, userID, false)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func (s *fileStore) SaveURLsBatch(
 	return res, nil
 }
 
-func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, error) {
+func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
 	return s.inMemoryStore.GetURL(ctx, shortURL)
 }
 
@@ -73,12 +73,13 @@ func (s *fileStore) GetURLs(ctx context.Context, userID string) (map[string]stri
 	return s.inMemoryStore.GetURLs(ctx, userID)
 }
 
-func (s *fileStore) writeToFile(fullURL string, shortURL string, userID string) error {
+func (s *fileStore) writeToFile(fullURL string, shortURL string, userID string, deleted bool) error {
 	data := models.Data{
 		UUID:        uuid.NewString(),
 		ShortURL:    shortURL,
 		OriginalURL: fullURL,
 		UserID:      userID,
+		Deleted:     deleted,
 	}
 
 	dataToJSON, err := json.Marshal(data)

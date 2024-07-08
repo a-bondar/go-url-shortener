@@ -14,7 +14,7 @@ import (
 
 type Store interface {
 	SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error)
-	GetURL(ctx context.Context, shortURL string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) (map[string]string, error)
 	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
@@ -55,7 +55,7 @@ func (s *Service) shortenURL(ctx context.Context) (string, error) {
 	for range maxRetries {
 		shortenURL = generateRandomString(maxShortURLLength)
 
-		if _, err := s.s.GetURL(ctx, shortenURL); err != nil {
+		if _, _, err := s.s.GetURL(ctx, shortenURL); err != nil {
 			break
 		}
 	}
@@ -140,13 +140,13 @@ func (s *Service) SaveBatchURLs(
 	return resp, nil
 }
 
-func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
-	fullURL, err := s.s.GetURL(ctx, shortURL)
+func (s *Service) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
+	fullURL, deleted, err := s.s.GetURL(ctx, shortURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to get full URL: %w", err)
+		return "", false, fmt.Errorf("failed to get full URL: %w", err)
 	}
 
-	return fullURL, nil
+	return fullURL, deleted, nil
 }
 
 func (s *Service) GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error) {
