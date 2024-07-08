@@ -70,6 +70,10 @@ func (s *serviceMock) GetURLs(_ context.Context, _ string) ([]models.URLsPair, e
 	return nil, nil
 }
 
+func (s *serviceMock) DeleteURLs(_ context.Context, _ []string, _ string) error {
+	return nil
+}
+
 func (s *serviceMock) SaveBatchURLs(
 	_ context.Context,
 	urls []models.OriginalURLCorrelation, _ string) ([]models.ShortURLCorrelation, error) {

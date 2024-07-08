@@ -21,6 +21,7 @@ type Store interface {
 	SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error)
 	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) (map[string]string, error)
+	DeleteURLs(ctx context.Context, urls []string, userID string) error
 	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
 	Close()

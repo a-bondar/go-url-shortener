@@ -16,6 +16,7 @@ type Store interface {
 	SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error)
 	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) (map[string]string, error)
+	DeleteURLs(ctx context.Context, urls []string, userID string) error
 	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
 }
@@ -169,6 +170,15 @@ func (s *Service) GetURLs(ctx context.Context, userID string) ([]models.URLsPair
 	}
 
 	return resp, nil
+}
+
+func (s *Service) DeleteURLs(ctx context.Context, urls []string, userID string) error {
+	err := s.s.DeleteURLs(ctx, urls, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete urls: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) Ping(ctx context.Context) error {

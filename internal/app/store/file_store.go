@@ -73,6 +73,10 @@ func (s *fileStore) GetURLs(ctx context.Context, userID string) (map[string]stri
 	return s.inMemoryStore.GetURLs(ctx, userID)
 }
 
+func (s *fileStore) DeleteURLs(ctx context.Context, urls []string, userID string) error {
+	return s.inMemoryStore.DeleteURLs(ctx, urls, userID)
+}
+
 func (s *fileStore) writeToFile(fullURL string, shortURL string, userID string, deleted bool) error {
 	data := models.Data{
 		UUID:        uuid.NewString(),

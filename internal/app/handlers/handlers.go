@@ -17,14 +17,17 @@ import (
 )
 
 const (
-	contentType     = "Content-Type"
-	applicationJSON = "application/json"
+	contentType      = "Content-Type"
+	applicationJSON  = "application/json"
+	unauthorized     = "Unauthorized"
+	failedToReadBody = "Failed to read body"
 )
 
 type Service interface {
 	SaveURL(ctx context.Context, fullURL string, userID string) (string, error)
 	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error)
+	DeleteURLs(ctx context.Context, urls []string, userID string) error
 	SaveBatchURLs(ctx context.Context, urls []models.OriginalURLCorrelation,
 		userID string) ([]models.ShortURLCorrelation, error)
 	Ping(ctx context.Context) error
@@ -45,7 +48,7 @@ func NewHandler(s Service, logger *zap.Logger) *Handler {
 func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 	fullURL, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.Error("Failed to read body", zap.Error(err))
+		h.logger.Error(failedToReadBody, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -95,7 +98,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		h.logger.Error("Failed to read body", zap.Error(err))
+		h.logger.Error(failedToReadBody, zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -141,7 +144,7 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		h.logger.Error("Failed to read body", zap.Error(err))
+		h.logger.Error(failedToReadBody, zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -194,14 +197,14 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("auth_token")
 	if err != nil {
 		h.logger.Error("Cannot get auth cookie", zap.Error(err))
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, unauthorized, http.StatusUnauthorized)
 		return
 	}
 
 	userID, err := middleware.GetUserID(cookie.Value)
 	if err != nil {
 		h.logger.Error("Cannot get userID", zap.Error(err))
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, unauthorized, http.StatusUnauthorized)
 		return
 	}
 
@@ -234,11 +237,24 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("auth_token")
+	if err != nil {
+		h.logger.Error("Cannot get auth cookie", zap.Error(err))
+		http.Error(w, unauthorized, http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := middleware.GetUserID(cookie.Value)
+	if err != nil {
+		h.logger.Error("Cannot get userID", zap.Error(err))
+		http.Error(w, unauthorized, http.StatusUnauthorized)
+		return
+	}
+
 	var request []string
 	var buf bytes.Buffer
-
 	if _, err := buf.ReadFrom(r.Body); err != nil {
-		h.logger.Error("Failed to read body", zap.Error(err))
+		h.logger.Error(failedToReadBody, zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
@@ -249,7 +265,12 @@ func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// @TODO - implement deletion logic
+	// @TODO - made this async
+	if err := h.s.DeleteURLs(r.Context(), request, userID); err != nil {
+		h.logger.Error("Failed to delete urls", zap.Error(err))
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
 
 	w.WriteHeader(http.StatusAccepted)
 }

@@ -117,6 +117,26 @@ func (s *DBStore) SaveURLsBatch(ctx context.Context, urls map[string]string, use
 	return res, nil
 }
 
+func (s *DBStore) DeleteURLs(ctx context.Context, urls []string, userID string) error {
+	query := `
+        UPDATE short_links
+        SET deleted = TRUE
+        WHERE user_id = $1
+        AND short_url = $2;
+    `
+	batch := &pgx.Batch{}
+	for _, shortURL := range urls {
+		batch.Queue(query, userID, shortURL)
+	}
+
+	err := s.pool.SendBatch(ctx, batch).Close()
+	if err != nil {
+		return fmt.Errorf("sendBatch error: %w", err)
+	}
+
+	return nil
+}
+
 func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
 	var (
 		originalURL string
