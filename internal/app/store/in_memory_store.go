@@ -28,10 +28,15 @@ func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL stri
 		s.m[userID] = userURLs
 	}
 
-	// Проверка на конфликт
+	// Проверка на конфликт с учетом флага deleted
 	for currentShortURL, currentShortURLData := range userURLs {
 		if currentShortURLData.FullURL == fullURL {
-			return currentShortURL, nil
+			if currentShortURLData.Deleted {
+				userURLs[shortURL] = &ShortURLData{FullURL: fullURL, Deleted: false}
+				return shortURL, nil
+			} else {
+				return currentShortURL, nil
+			}
 		}
 	}
 

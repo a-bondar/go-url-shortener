@@ -74,7 +74,11 @@ func (s *DBStore) SaveURL(ctx context.Context, fullURL string, shortURL string, 
 		WITH new_url AS (
 			INSERT INTO short_links(short_url, original_url, user_id)
 			VALUES ($1, $2, $3)
-			ON CONFLICT (original_url) DO NOTHING
+			ON CONFLICT (original_url) DO
+			UPDATE SET
+				short_url = EXCLUDED.short_url,
+				deleted = FALSE
+			WHERE short_links.deleted = TRUE
 			RETURNING short_url
 		)
 		SELECT short_url FROM new_url

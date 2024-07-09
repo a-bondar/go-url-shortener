@@ -39,14 +39,18 @@ func CreateAccessToken(userID string) (string, error) {
 	return tokenString, nil
 }
 
-func GetUserIDFromContext(ctx context.Context) (string, bool) {
+func GetUserIDFromContext(ctx context.Context) (string, error) {
 	value := ctx.Value(userIDKey)
 	if value == nil {
-		return "", false
+		return "", errors.New("user ID not found in context")
 	}
-	userID, ok := value.(string)
 
-	return userID, ok
+	userID, ok := value.(string)
+	if !ok {
+		return "", errors.New("context user ID is not a string")
+	}
+
+	return userID, nil
 }
 
 func GetUserID(tokenString string) (userID string, err error) {

@@ -19,7 +19,6 @@ import (
 const (
 	contentType      = "Content-Type"
 	applicationJSON  = "application/json"
-	unauthorized     = "Unauthorized"
 	failedToReadBody = "Failed to read body"
 )
 
@@ -53,7 +52,13 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	userID, err := middleware.GetUserIDFromContext(r.Context())
+	if err != nil {
+		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
 	statusCode := http.StatusCreated
 	resURL, err := h.s.SaveURL(r.Context(), string(fullURL), userID)
 	if err != nil {
@@ -109,7 +114,13 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, _ := middleware.GetUserIDFromContext(r.Context())
+	userID, err := middleware.GetUserIDFromContext(r.Context())
+	if err != nil {
+		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
 	statusCode := http.StatusCreated
 	resURL, err := h.s.SaveURL(r.Context(), request.URL, userID)
 	if err != nil {
@@ -151,13 +162,18 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 	if err = json.Unmarshal(buf.Bytes(), &request); err != nil {
 		h.logger.Error("Failed to unmarshal request", zap.Error(err))
-		http.Error(w, "", http.StatusBadRequest)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	var response models.HandleShortenBatchResponse
-	userID, _ := middleware.GetUserIDFromContext(r.Context())
-	response, err = h.s.SaveBatchURLs(r.Context(), request, userID)
+	userID, err := middleware.GetUserIDFromContext(r.Context())
+	if err != nil {
+		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	response, err := h.s.SaveBatchURLs(r.Context(), request, userID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URLs", zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
@@ -194,22 +210,14 @@ func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("auth_token")
+	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get auth cookie", zap.Error(err))
-		http.Error(w, unauthorized, http.StatusUnauthorized)
-		return
-	}
-
-	userID, err := middleware.GetUserID(cookie.Value)
-	if err != nil {
-		h.logger.Error("Cannot get userID", zap.Error(err))
-		http.Error(w, unauthorized, http.StatusUnauthorized)
+		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	userURLs, err := h.s.GetURLs(r.Context(), userID)
-
 	if err != nil {
 		if !errors.Is(err, store.ErrUserHasNoURLs) {
 			h.logger.Error("Failed to get user URLs", zap.Error(err))
@@ -221,8 +229,8 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buf := new(bytes.Buffer)
-	enc := json.NewEncoder(buf)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	if err = enc.Encode(userURLs); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -237,38 +245,30 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("auth_token")
+	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get auth cookie", zap.Error(err))
-		http.Error(w, unauthorized, http.StatusUnauthorized)
-		return
-	}
-
-	userID, err := middleware.GetUserID(cookie.Value)
-	if err != nil {
-		h.logger.Error("Cannot get userID", zap.Error(err))
-		http.Error(w, unauthorized, http.StatusUnauthorized)
+		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
 	var request []string
 	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r.Body); err != nil {
+	if _, err = buf.ReadFrom(r.Body); err != nil {
 		h.logger.Error(failedToReadBody, zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
-	if err := json.Unmarshal(buf.Bytes(), &request); err != nil {
+	if err = json.Unmarshal(buf.Bytes(), &request); err != nil {
 		h.logger.Error("Failed to unmarshal request", zap.Error(err))
 		http.Error(w, "", http.StatusBadRequest)
 		return
 	}
 
-	// @TODO - made this async
-	if err := h.s.DeleteURLs(r.Context(), request, userID); err != nil {
+	if err = h.s.DeleteURLs(r.Context(), request, userID); err != nil {
 		h.logger.Error("Failed to delete urls", zap.Error(err))
-		http.Error(w, "", http.StatusBadRequest)
+		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
