@@ -20,6 +20,7 @@ const (
 	contentType      = "Content-Type"
 	applicationJSON  = "application/json"
 	failedToReadBody = "Failed to read body"
+	cannotGetUserID  = "Cannot get userID from context"
 )
 
 type Service interface {
@@ -54,7 +55,7 @@ func (h *Handler) HandlePost(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		h.logger.Error(cannotGetUserID, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -116,7 +117,7 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		h.logger.Error(cannotGetUserID, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -168,7 +169,7 @@ func (h *Handler) HandleShortenBatch(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		h.logger.Error(cannotGetUserID, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -212,7 +213,7 @@ func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		h.logger.Error(cannotGetUserID, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -229,25 +230,20 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	if err = enc.Encode(userURLs); err != nil {
+	w.Header().Set(contentType, applicationJSON)
+	w.WriteHeader(http.StatusOK)
+	encoder := json.NewEncoder(w)
+	if err = encoder.Encode(userURLs); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
-	}
-
-	w.Header().Set(contentType, applicationJSON)
-	w.WriteHeader(http.StatusOK)
-	if _, err = w.Write(buf.Bytes()); err != nil {
-		h.logger.Error("Failed to send response", zap.Error(err))
 	}
 }
 
 func (h *Handler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
-		h.logger.Error("Cannot get userID from context", zap.Error(err))
+		h.logger.Error(cannotGetUserID, zap.Error(err))
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
