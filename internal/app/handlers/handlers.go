@@ -211,6 +211,13 @@ func (h *Handler) HandleDatabasePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
+	_, err := r.Cookie("auth_token")
+	if err != nil {
+		h.logger.Error("Cannot get auth cookie", zap.Error(err))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	userID, err := middleware.GetUserIDFromContext(r.Context())
 	if err != nil {
 		h.logger.Error(cannotGetUserID, zap.Error(err))
