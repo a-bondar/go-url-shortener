@@ -231,7 +231,8 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set(contentType, applicationJSON)
-	if err := json.NewEncoder(w).Encode(userURLs); err != nil {
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(userURLs); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
