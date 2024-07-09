@@ -230,19 +230,10 @@ func (h *Handler) HandleUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	buf := new(bytes.Buffer)
-	enc := json.NewEncoder(buf)
-	if err = enc.Encode(userURLs); err != nil {
+	w.Header().Set(contentType, applicationJSON)
+	if err := json.NewEncoder(w).Encode(userURLs); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set(contentType, applicationJSON)
-	w.WriteHeader(http.StatusOK)
-	if _, err = w.Write(buf.Bytes()); err != nil {
-		h.logger.Error("Failed to send response", zap.Error(err))
-		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 }
