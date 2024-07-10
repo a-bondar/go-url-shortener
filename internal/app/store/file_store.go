@@ -77,6 +77,10 @@ func (s *fileStore) DeleteURLs(ctx context.Context, urls []string, userID string
 	return s.inMemoryStore.DeleteURLs(ctx, urls, userID)
 }
 
+func (s *fileStore) CleanupDeletedURLs(ctx context.Context) error {
+	return s.inMemoryStore.CleanupDeletedURLs(ctx)
+}
+
 func (s *fileStore) writeToFile(fullURL string, shortURL string, userID string, deleted bool) error {
 	data := models.Data{
 		UUID:        uuid.NewString(),

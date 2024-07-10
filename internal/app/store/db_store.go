@@ -141,6 +141,15 @@ func (s *DBStore) DeleteURLs(ctx context.Context, urls []string, userID string) 
 	return nil
 }
 
+func (s *DBStore) CleanupDeletedURLs(ctx context.Context) error {
+	_, err := s.pool.Exec(ctx, "DELETE FROM short_links WHERE deleted = true")
+	if err != nil {
+		return fmt.Errorf("failed to cleanup deleted urls: %w", err)
+	}
+
+	return nil
+}
+
 func (s *DBStore) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
 	var (
 		originalURL string

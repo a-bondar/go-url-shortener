@@ -10,6 +10,7 @@ import (
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
+	"go.uber.org/zap"
 )
 
 type Store interface {
@@ -17,19 +18,23 @@ type Store interface {
 	GetURL(ctx context.Context, shortURL string) (string, bool, error)
 	GetURLs(ctx context.Context, userID string) (map[string]string, error)
 	DeleteURLs(ctx context.Context, urls []string, userID string) error
+	CleanupDeletedURLs(ctx context.Context) error
 	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
 }
 
 type Service struct {
-	s   Store
-	cfg *config.Config
+	s      Store
+	cfg    *config.Config
+	logger *zap.Logger
+	ticker *time.Ticker
 }
 
-func NewService(s Store, cfg *config.Config) *Service {
-	return &Service{s: s, cfg: cfg}
+func NewService(s Store, cfg *config.Config, logger *zap.Logger) *Service {
+	return &Service{s: s, cfg: cfg, logger: logger}
 }
 
+const cleanupInterval = 1 * time.Hour
 const maxRetries = 3
 const maxShortURLLength = 8
 const (
@@ -188,4 +193,20 @@ func (s *Service) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Service) StartCleanupJob(ctx context.Context) {
+	s.ticker = time.NewTicker(cleanupInterval)
+
+	go func() {
+		for range s.ticker.C {
+			if err := s.s.CleanupDeletedURLs(ctx); err != nil {
+				s.logger.Error("Failed to cleanup urls", zap.Error(err))
+			}
+		}
+	}()
+}
+
+func (s *Service) StopCleanupJob() {
+	s.ticker.Stop()
 }

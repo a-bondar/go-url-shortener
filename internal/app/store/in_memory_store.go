@@ -84,6 +84,18 @@ func (s *inMemoryStore) DeleteURLs(_ context.Context, urls []string, userID stri
 	return nil
 }
 
+func (s *inMemoryStore) CleanupDeletedURLs(_ context.Context) error {
+	for _, userURLs := range s.m {
+		for shortURL, shortURLData := range userURLs {
+			if shortURLData.Deleted {
+				delete(userURLs, shortURL)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *inMemoryStore) SaveURLsBatch(_ context.Context,
 	urls map[string]string, userID string) (map[string]string, error) {
 	userURLs, ok := s.m[userID]
