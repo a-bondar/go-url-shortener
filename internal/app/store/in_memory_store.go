@@ -2,45 +2,112 @@ package store
 
 import (
 	"context"
-	"errors"
+	"fmt"
 )
 
+type ShortURLData struct {
+	FullURL string
+	Deleted bool
+}
+
 type inMemoryStore struct {
-	m map[string]string
+	m map[string]map[string]*ShortURLData
 }
 
 func newInMemoryStore() *inMemoryStore {
 	return &inMemoryStore{
-		m: make(map[string]string),
+		m: make(map[string]map[string]*ShortURLData),
 	}
 }
 
-func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL string) (string, error) {
-	// Проверка на конфликт
-	for currentShortURL, currentFullURL := range s.m {
-		if currentFullURL == fullURL {
-			return currentShortURL, nil
+func (s *inMemoryStore) SaveURL(_ context.Context, fullURL string, shortURL string, userID string) (string, error) {
+	userURLs, ok := s.m[userID]
+	if !ok {
+		// У пользователя еще нет данных, создаем пустой map
+		userURLs = make(map[string]*ShortURLData)
+		s.m[userID] = userURLs
+	}
+
+	// Проверка на конфликт с учетом флага deleted
+	for currentShortURL, currentShortURLData := range userURLs {
+		if currentShortURLData.FullURL == fullURL {
+			if currentShortURLData.Deleted {
+				userURLs[shortURL] = &ShortURLData{FullURL: fullURL, Deleted: false}
+				return shortURL, nil
+			} else {
+				return currentShortURL, nil
+			}
 		}
 	}
 
-	s.m[shortURL] = fullURL
+	userURLs[shortURL] = &ShortURLData{FullURL: fullURL, Deleted: false}
 
 	return shortURL, nil
 }
 
-func (s *inMemoryStore) GetURL(_ context.Context, shortURL string) (string, error) {
-	if URL, ok := s.m[shortURL]; ok {
-		return URL, nil
+func (s *inMemoryStore) GetURL(_ context.Context, shortURL string) (string, bool, error) {
+	for _, userURLs := range s.m {
+		if shortURLData, ok := userURLs[shortURL]; ok {
+			return shortURLData.FullURL, shortURLData.Deleted, nil
+		}
 	}
 
-	return "", errors.New("URL not found")
+	return "", false, fmt.Errorf("%w", ErrURLNotFound)
 }
 
-func (s *inMemoryStore) SaveURLsBatch(_ context.Context, urls map[string]string) (map[string]string, error) {
-	res := make(map[string]string)
+func (s *inMemoryStore) GetURLs(_ context.Context, userID string) (map[string]string, error) {
+	userURLs, ok := s.m[userID]
+	if !ok {
+		return nil, fmt.Errorf("%w", ErrUserHasNoURLs)
+	}
 
+	res := make(map[string]string)
+	for shortURL, shortURLData := range userURLs {
+		res[shortURL] = shortURLData.FullURL
+	}
+
+	return res, nil
+}
+
+func (s *inMemoryStore) DeleteURLs(_ context.Context, urls []string, userID string) error {
+	userURLs, ok := s.m[userID]
+	if !ok {
+		return fmt.Errorf("%w", ErrUserHasNoURLs)
+	}
+
+	for _, url := range urls {
+		if userURL, ok := userURLs[url]; ok {
+			userURL.Deleted = true
+		}
+	}
+
+	return nil
+}
+
+func (s *inMemoryStore) CleanupDeletedURLs(_ context.Context) error {
+	for _, userURLs := range s.m {
+		for shortURL, shortURLData := range userURLs {
+			if shortURLData.Deleted {
+				delete(userURLs, shortURL)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *inMemoryStore) SaveURLsBatch(_ context.Context,
+	urls map[string]string, userID string) (map[string]string, error) {
+	userURLs, ok := s.m[userID]
+	if !ok {
+		// У пользователя еще нет данных, создаем пустой map
+		userURLs = make(map[string]*ShortURLData)
+		s.m[userID] = userURLs
+	}
+
+	res := make(map[string]string)
 	for fullURL, shortURL := range urls {
-		s.m[shortURL] = fullURL
+		userURLs[shortURL] = &ShortURLData{FullURL: fullURL, Deleted: false}
 		res[fullURL] = shortURL
 	}
 

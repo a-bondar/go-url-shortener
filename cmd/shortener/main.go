@@ -47,7 +47,10 @@ func Run() error {
 
 	defer s.Close()
 
-	svc := service.NewService(s, cfg)
+	svc := service.NewService(s, cfg, l)
+	svc.StartCleanupJob(context.Background())
+	defer svc.StopCleanupJob()
+
 	h := handlers.NewHandler(svc, l)
 
 	l.Info("Running server", zap.String("address", cfg.RunAddr))

@@ -10,24 +10,31 @@ import (
 
 	"github.com/a-bondar/go-url-shortener/internal/app/config"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
+	"go.uber.org/zap"
 )
 
 type Store interface {
-	SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error)
-	GetURL(ctx context.Context, shortURL string) (string, error)
-	SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error)
+	SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error)
+	GetURL(ctx context.Context, shortURL string) (string, bool, error)
+	GetURLs(ctx context.Context, userID string) (map[string]string, error)
+	DeleteURLs(ctx context.Context, urls []string, userID string) error
+	CleanupDeletedURLs(ctx context.Context) error
+	SaveURLsBatch(ctx context.Context, urls map[string]string, userID string) (map[string]string, error)
 	Ping(ctx context.Context) error
 }
 
 type Service struct {
-	s   Store
-	cfg *config.Config
+	s      Store
+	cfg    *config.Config
+	logger *zap.Logger
+	ticker *time.Ticker
 }
 
-func NewService(s Store, cfg *config.Config) *Service {
-	return &Service{s: s, cfg: cfg}
+func NewService(s Store, cfg *config.Config, logger *zap.Logger) *Service {
+	return &Service{s: s, cfg: cfg, logger: logger}
 }
 
+const cleanupInterval = 1 * time.Hour
 const maxRetries = 3
 const maxShortURLLength = 8
 const (
@@ -54,7 +61,7 @@ func (s *Service) shortenURL(ctx context.Context) (string, error) {
 	for range maxRetries {
 		shortenURL = generateRandomString(maxShortURLLength)
 
-		if _, err := s.s.GetURL(ctx, shortenURL); err != nil {
+		if _, _, err := s.s.GetURL(ctx, shortenURL); err != nil {
 			break
 		}
 	}
@@ -75,13 +82,13 @@ func (s *Service) buildURL(shortenURL string) (string, error) {
 	return res, nil
 }
 
-func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
+func (s *Service) SaveURL(ctx context.Context, fullURL string, userID string) (string, error) {
 	shortenURL, err := s.shortenURL(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate unique short URL: %w", err)
 	}
 
-	resultedShortURL, err := s.s.SaveURL(ctx, fullURL, shortenURL)
+	resultedShortURL, err := s.s.SaveURL(ctx, fullURL, shortenURL, userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to save URL: %w", err)
 	}
@@ -100,7 +107,9 @@ func (s *Service) SaveURL(ctx context.Context, fullURL string) (string, error) {
 
 func (s *Service) SaveBatchURLs(
 	ctx context.Context,
-	urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+	urls []models.OriginalURLCorrelation,
+	userID string,
+) ([]models.ShortURLCorrelation, error) {
 	// Мапа для связи корреляционных идентификаторов и полных URL
 	fullURLbyCorrID := make(map[string]string)
 	urlsMap := make(map[string]string)
@@ -116,7 +125,7 @@ func (s *Service) SaveBatchURLs(
 		fullURLbyCorrID[URL.OriginalURL] = URL.CorrelationID
 	}
 
-	batchRes, err := s.s.SaveURLsBatch(ctx, urlsMap)
+	batchRes, err := s.s.SaveURLsBatch(ctx, urlsMap, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save batch URLs: %w", err)
 	}
@@ -137,14 +146,44 @@ func (s *Service) SaveBatchURLs(
 	return resp, nil
 }
 
-func (s *Service) GetURL(ctx context.Context, shortURL string) (string, error) {
-	fullURL, err := s.s.GetURL(ctx, shortURL)
-
+func (s *Service) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
+	fullURL, deleted, err := s.s.GetURL(ctx, shortURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to get full URL: %w", err)
+		return "", false, fmt.Errorf("failed to get full URL: %w", err)
 	}
 
-	return fullURL, nil
+	return fullURL, deleted, nil
+}
+
+func (s *Service) GetURLs(ctx context.Context, userID string) ([]models.URLsPair, error) {
+	userURLs, err := s.s.GetURLs(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
+	}
+
+	resp := make([]models.URLsPair, 0, len(userURLs))
+	for shortURL, fullURL := range userURLs {
+		resURL, buildErr := s.buildURL(shortURL)
+		if buildErr != nil {
+			return nil, fmt.Errorf(failedToBuildURLError, buildErr)
+		}
+
+		resp = append(resp, models.URLsPair{
+			ShortURL:    resURL,
+			OriginalURL: fullURL,
+		})
+	}
+
+	return resp, nil
+}
+
+func (s *Service) DeleteURLs(ctx context.Context, urls []string, userID string) error {
+	err := s.s.DeleteURLs(ctx, urls, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete urls: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) Ping(ctx context.Context) error {
@@ -154,4 +193,20 @@ func (s *Service) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *Service) StartCleanupJob(ctx context.Context) {
+	s.ticker = time.NewTicker(cleanupInterval)
+
+	go func() {
+		for range s.ticker.C {
+			if err := s.s.CleanupDeletedURLs(ctx); err != nil {
+				s.logger.Error("Failed to cleanup urls", zap.Error(err))
+			}
+		}
+	}()
+}
+
+func (s *Service) StopCleanupJob() {
+	s.ticker.Stop()
 }

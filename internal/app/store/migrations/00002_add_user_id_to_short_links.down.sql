@@ -1,0 +1,6 @@
+BEGIN TRANSACTION;
+
+ALTER TABLE short_links
+DROP COLUMN user_id;
+
+COMMIT;

@@ -11,17 +11,27 @@ import (
 	"testing"
 
 	"github.com/a-bondar/go-url-shortener/internal/app/handlers"
+	"github.com/a-bondar/go-url-shortener/internal/app/middleware"
 	"github.com/a-bondar/go-url-shortener/internal/app/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
+const userID = "12345"
+
 func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io.Reader) (*http.Response, string) {
 	t.Helper()
 
 	req, err := http.NewRequest(method, ts.URL+path, body)
 	require.NoError(t, err)
+
+	token, _ := middleware.CreateAccessToken(userID)
+	req.AddCookie(&http.Cookie{
+		Name:  "auth_token",
+		Value: token,
+		Path:  "/",
+	})
 
 	ts.Client().CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -44,21 +54,29 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 
 type serviceMock struct{}
 
-func (s *serviceMock) SaveURL(_ context.Context, _ string) (string, error) {
+func (s *serviceMock) SaveURL(_ context.Context, _ string, _ string) (string, error) {
 	return "http://localhost:8080/qw12qw", nil
 }
 
-func (s *serviceMock) GetURL(_ context.Context, shortURL string) (string, error) {
+func (s *serviceMock) GetURL(_ context.Context, shortURL string) (string, bool, error) {
 	if shortURL != "qw12qw" {
-		return "", errors.New("link not found")
+		return "", false, errors.New("link not found")
 	}
 
-	return "https://hello.world", nil
+	return "https://hello.world", false, nil
+}
+
+func (s *serviceMock) GetURLs(_ context.Context, _ string) ([]models.URLsPair, error) {
+	return nil, nil
+}
+
+func (s *serviceMock) DeleteURLs(_ context.Context, _ []string, _ string) error {
+	return nil
 }
 
 func (s *serviceMock) SaveBatchURLs(
 	_ context.Context,
-	urls []models.OriginalURLCorrelation) ([]models.ShortURLCorrelation, error) {
+	urls []models.OriginalURLCorrelation, _ string) ([]models.ShortURLCorrelation, error) {
 	res := make([]models.ShortURLCorrelation, 0, len(urls))
 
 	for _, url := range urls {
