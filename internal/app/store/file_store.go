@@ -30,13 +30,13 @@ func newFileStore(ctx context.Context, fName string) (*fileStore, error) {
 	return store, nil
 }
 
-func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string) (string, error) {
-	savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
+func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string, userID string) (string, error) {
+	savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL, userID)
 	if err != nil {
 		return "", err
 	}
 
-	err = s.writeToFile(fullURL, savedShortURL)
+	err = s.writeToFile(fullURL, savedShortURL, userID, false)
 	if err != nil {
 		return "", err
 	}
@@ -44,16 +44,17 @@ func (s *fileStore) SaveURL(ctx context.Context, fullURL string, shortURL string
 	return savedShortURL, nil
 }
 
-func (s *fileStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (map[string]string, error) {
+func (s *fileStore) SaveURLsBatch(
+	ctx context.Context, urls map[string]string, userID string) (map[string]string, error) {
 	res := make(map[string]string)
 
 	for fullURL, shortURL := range urls {
-		savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL)
+		savedShortURL, err := s.inMemoryStore.SaveURL(ctx, fullURL, shortURL, userID)
 		if err != nil {
 			return nil, err
 		}
 
-		err = s.writeToFile(fullURL, savedShortURL)
+		err = s.writeToFile(fullURL, savedShortURL, userID, false)
 		if err != nil {
 			return nil, err
 		}
@@ -64,15 +65,29 @@ func (s *fileStore) SaveURLsBatch(ctx context.Context, urls map[string]string) (
 	return res, nil
 }
 
-func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, error) {
+func (s *fileStore) GetURL(ctx context.Context, shortURL string) (string, bool, error) {
 	return s.inMemoryStore.GetURL(ctx, shortURL)
 }
 
-func (s *fileStore) writeToFile(fullURL string, shortURL string) error {
+func (s *fileStore) GetURLs(ctx context.Context, userID string) (map[string]string, error) {
+	return s.inMemoryStore.GetURLs(ctx, userID)
+}
+
+func (s *fileStore) DeleteURLs(ctx context.Context, urls []string, userID string) error {
+	return s.inMemoryStore.DeleteURLs(ctx, urls, userID)
+}
+
+func (s *fileStore) CleanupDeletedURLs(ctx context.Context) error {
+	return s.inMemoryStore.CleanupDeletedURLs(ctx)
+}
+
+func (s *fileStore) writeToFile(fullURL string, shortURL string, userID string, deleted bool) error {
 	data := models.Data{
 		UUID:        uuid.NewString(),
 		ShortURL:    shortURL,
 		OriginalURL: fullURL,
+		UserID:      userID,
+		Deleted:     deleted,
 	}
 
 	dataToJSON, err := json.Marshal(data)
@@ -127,7 +142,7 @@ func (s *fileStore) loadFromFile(ctx context.Context) error {
 			return fmt.Errorf("failed to unmarshal data: %w", err)
 		}
 
-		if _, err := s.inMemoryStore.SaveURL(ctx, data.OriginalURL, data.ShortURL); err != nil {
+		if _, err := s.inMemoryStore.SaveURL(ctx, data.OriginalURL, data.ShortURL, data.UserID); err != nil {
 			return fmt.Errorf("failed to save URL: %w", err)
 		}
 	}
